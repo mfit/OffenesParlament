@@ -1,0 +1,37 @@
+# -*- coding: UTF-8 -*-
+from django.shortcuts import render, redirect
+import op_scraper.models as models
+from django.db.models import Count, Max
+import datetime
+from django.utils.safestring import mark_safe
+from scrapy import Selector
+from op_scraper.scraper.parlament.resources.extractors import statement
+
+def index(request, value=None):
+    llps = models.LegislativePeriod.objects.all()
+    debates = []
+    debate = False
+    statements = []
+    if 'llpnr' in request.GET:
+        llp = models.LegislativePeriod.objects.get(
+            number=int(request.GET['llpnr']))
+        debates = models.Debate.objects.filter(llp=llp)
+
+    if 'debate_id' in request.GET:
+        debate = models.Debate.objects.get(id=int(request.GET['debate_id']))
+        for s in  debate.debate_statements.order_by('index').all():
+            links = Selector(text=s.raw_text).xpath('.//a')
+            statements.append({
+                "links": links,
+                "model": s,
+                "orig": mark_safe(s.raw_text),
+                "clean": s.full_text,
+            })
+
+    return render(request, 'inspect.html',
+                  context={'llps':llps,
+                           'debates': debates,
+                           'debate': debate,
+                           'statements': statements})
+
+

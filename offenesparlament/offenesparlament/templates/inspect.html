@@ -1,0 +1,42 @@
+{% extends "base_content.html" %}
+{% block container %}
+  <h1>Statement Inspector</h1>
+  <form action="?" method="GET">
+    <select name="llpnr">
+      {% for l in llps %}
+        <option value="{{l.number}}">{{l}}</option>
+      {% endfor %}
+    </select>
+    <select name="debate_id">
+      {% for d in debates %}
+        <option value="{{d.id}}">{{d}}</option>
+      {% endfor %}
+    </select>
+    <input type="submit" value="query"/>
+  </form>
+  <div>
+    {% if debate %}
+      <h2>{{debate}}</h2>
+      <table>
+      {% for stmt in statements %}
+        <tr>
+          <td>{{stmt.model.date}}, {{stmt.model.index}}, {{stmt.model.person_id}}</td><td></td>
+        </tr>
+        <tr>
+          <td width="30%">
+            <div>{{stmt.orig}}</div>
+            {% for l in stmt.links %}
+            {{l}}
+            {% endfor %}
+          </td>
+          <td width="30%">
+            <pre style="white-space:pre-wrap">{{stmt.clean}}</pre>
+          </td>
+        </tr>
+      {% endfor %}
+      </table>
+    {% endif %}
+  </div>
+
+{% endblock %}
+

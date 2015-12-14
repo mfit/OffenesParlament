@@ -60,8 +60,6 @@ urlpatterns = patterns(
         subscriptions.list,
         name='list'),
 
-
-
     url(r'^grappelli/', include('grappelli.urls')),  # grappelli URLS
     url(r'^admin/scrape/(?P<spider_name>.{1,30})',
         admin_views.trigger_scrape, name='scrape_llp'),
@@ -75,3 +73,9 @@ if settings.DEBUG:
     urlpatterns += patterns('',
                             url(r'^__debug__/', include(debug_toolbar.urls)),
                             )
+
+    # Inspect debate statements to verify scraping / parsing was correct
+    from op_inspect.views import index as inspect_index
+    urlpatterns += patterns('', url(r'^inspect/(?P<value>.*)/?$',
+                                    inspect_index,
+                                    name='inspect'))
