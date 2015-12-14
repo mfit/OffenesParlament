@@ -210,6 +210,8 @@ class DOCSECTIONS(MultiExtractor):
             res['speaker_id'] = StatementPostprocess.get_speaker_id(res)
             res['speaker_role'] = StatementPostprocess.get_speaker_role(res)
 
+            # StatementPostprocess.get_parts(response)
+
             sections.append(res)
         return sections
 
@@ -260,3 +262,31 @@ class StatementPostprocess():
                if data['full_text'].startswith(u'Präs') \
                else cls.TAG_SPKR_ROLE_OTHER
 
+
+    @classmethod
+    def get_parts(cls, data):
+        for el in data.xpath('.//p/span'):
+            # print el.extract().encode('utf8')
+            pass
+
+
+"""
+# Parse content of statement
+for el in scrapy.Selector(text=statement.raw_text).xpath('.//p/text()'):
+    print el.extract().encode('utf8')
+for el in scrapy.Selector(text=statement.raw_text).xpath('.//*'):
+    # all elements
+    print el.extract().encode('utf8')
+
+
+# Create xml
+import xml
+el = xml.dom.minidom.Element('p')
+textel = xml.dom.minidom.Text()
+textel.dat = 'hi'
+el.appendChild(textel)
+el.toxml()
+
+
+
+"""
