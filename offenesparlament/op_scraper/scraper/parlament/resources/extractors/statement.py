@@ -15,6 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 regexStripTags = re.compile('<.*?>')
+regexStripComments = re.compile('<i>\(.*?\)</i>')
 regexTimestamp = re.compile('([0-9]{1,2} [A-Za-z]{3} [0-9]{4})')
 regexFindPage = re.compile('Seite_([0-9]*)\.html')
 regexSpeakerId = re.compile('WWER/(PAD_[0-9]*)/')
@@ -113,6 +114,26 @@ class DOCSECTIONS(MultiExtractor):
     class TEXT(SingleExtractor):
         XPATH = 'text()'
 
+    class CONTENT_PLAIN(SingleExtractor):
+        @classmethod
+        def _is_text(cls, response):
+            pclass = None
+            try:
+                pclass = response.xpath('.//@class').extract().pop().strip()
+            except:
+                pass
+            if pclass in PARAGRAPH_CLASSES or pclass is None:
+                return True
+
+        @classmethod
+        def xt(cls, response):
+            textparts = []
+            for txt in [t for t in response.xpath('p') if cls._is_text(t)]:
+                par = txt.extract()
+                cleaned = ''.join(regexStripComments.split(par))
+                textparts.append(cleaned)
+            return '\n\n'.join([' '.join(p.splitlines()) for p in textparts])
+
     class CONTENT(SingleExtractor):
         """
         Main, textual content of the section
@@ -121,26 +142,8 @@ class DOCSECTIONS(MultiExtractor):
         def xt(cls, response):
             textparts = []
             for txt in response.xpath('p'):
-                try:
-                    pclass = txt.xpath('@class').extract().pop().strip()
-                    if pclass in PARAGRAPH_CLASSES:
-                        textparts.append(txt.extract())
-                except:
-                    # p with no class
-                    textparts.append(txt.extract())
-                    logger.warning(u"No class in element, but keeping: '{}'"
-                                   .format(txt.extract()))
-
-            raw = ' '.join(''.join(textparts).splitlines())
-            return {'raw_text': raw,
-                    'clean': ''.join(regexStripTags.split(raw)).strip()}
-
-    # def _filter_paragraph(cls, p):
-    #     """
-    #     Rules whether a paragraph contains text that belongs in
-    #     the statement
-    #     """
-    #     pass
+                textparts.append(txt.extract())
+            return '\n\n'.join([' '.join(p.splitlines()) for p in textparts])
 
     @classmethod
     def _clean_timestamps(cls, timestamps):
@@ -160,6 +163,13 @@ class DOCSECTIONS(MultiExtractor):
     def xt(cls, response):
         """
         Extract sections (statements) from document (protocol)
+
+        A section is a div-element `<div class="WordSection..">` that
+        contains a single speech in paragraphs of text.
+        It also contains entity-links, i-elements (for explanatory
+        comments not part of the actual speech), as well as page-numbers,
+        time-stamps and other artefacts.
+
         """
         sections = []
         current_maxpage = None
@@ -170,7 +180,8 @@ class DOCSECTIONS(MultiExtractor):
             links = []
 
             # Parse section
-            content = cls.CONTENT.xt(item)
+            rawtext = cls.CONTENT.xt(item)
+            plaintext = ''.join(regexStripTags.split(cls.CONTENT_PLAIN.xt(item)))
             classnames = cls.CLASSINFO.xt(item)
             timestamps = cls.TIMESTAMPS.xt(item)
 
@@ -193,8 +204,8 @@ class DOCSECTIONS(MultiExtractor):
             if len(timestamps):
                 current_timestamp = max(timestamps)
 
-            res = {'raw_text': content['raw_text'],
-                   'full_text': content['clean'],
+            res = {'raw_text': rawtext,
+                   'full_text': plaintext,
                    'doc_section': classnames[0] if len(classnames) else None,
                    'links': links,
                    'timestamps': timestamps,
@@ -202,8 +213,6 @@ class DOCSECTIONS(MultiExtractor):
                    'page_start': min(pages) if len(pages) else current_maxpage,
                    'page_end': max(pages) if len(pages) else current_maxpage,
                    }
-            # res = dict(res.items() +
-            #            StatementPostprocess(content).process().items())
 
             res['text_type'] = StatementPostprocess.detect_sectiontype(res)
             res['speaker_name'] = StatementPostprocess.get_speaker_name(res)
@@ -246,11 +255,13 @@ class StatementPostprocess():
 
     @classmethod
     def get_speaker_name(cls, data):
+        """ Get from the first of the extracted links """
         if len(data['links']):
             return data['links'][0][1]
 
     @classmethod
     def get_speaker_id(cls, data):
+        """ Get from the first of the extracted links """
         if len(data['links']):
             ids = regexSpeakerId.findall(data['links'][0][0])
             if ids:
@@ -258,16 +269,10 @@ class StatementPostprocess():
 
     @classmethod
     def get_speaker_role(cls, data):
+        """ By examining the first word of the section """
         return cls.TAG_SPKR_ROLE_PRES \
                if data['full_text'].startswith(u'Präs') \
                else cls.TAG_SPKR_ROLE_OTHER
-
-
-    @classmethod
-    def get_parts(cls, data):
-        for el in data.xpath('.//p/span'):
-            # print el.extract().encode('utf8')
-            pass
 
 
 """
@@ -288,5 +293,7 @@ el.appendChild(textel)
 el.toxml()
 
 
+loop over P's
+    - loop over
 
 """
