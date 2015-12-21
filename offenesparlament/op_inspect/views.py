@@ -25,6 +25,7 @@ def index(request, value=None):
                 "links": links,
                 "model": s,
                 "orig": mark_safe(s.raw_text),
+                "annotated": mark_safe(s.annotated_text),
                 "clean": s.full_text,
             })
 

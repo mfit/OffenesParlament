@@ -14,16 +14,46 @@ from parlament.settings import BASE_HOST
 import logging
 logger = logging.getLogger(__name__)
 
-regexStripTags = re.compile('<.*?>')
-regexStripComments = re.compile('<i>\(.*?\)</i>')
+class ST():
+    regexStripTags = re.compile('<.*?>')
+    @classmethod
+    def strip_tags(cls, txt):
+        try:
+            return ''.join(cls.regexStripTags.split(txt))
+        except TypeError:
+            print("Cannot strip tags from {}".format(txt))
+            return ''
+
+def merge_split_paragraphs(textparts):
+    """
+    Re-merge paragraphs that have been divided by pagebreaks, footer lines etc.
+    """
+    merged = []
+    for p in textparts:
+        if len(p) and p[0].islower():
+            pindx = len(merged) - 1
+            if len(merged[pindx]) and merged[pindx][-1] == '-':
+                merged[pindx] = merged[pindx][0:-1]
+            merged[pindx] += p
+        else:
+            merged.append(p)
+
+    return [' '.join(p.splitlines()) for p in merged]
+
 regexTimestamp = re.compile('([0-9]{1,2} [A-Za-z]{3} [0-9]{4})')
 regexFindPage = re.compile('Seite_([0-9]*)\.html')
 regexSpeakerId = re.compile('WWER/(PAD_[0-9]*)/')
 regexDebateNr = re.compile('/NRSITZ_([0-9]*)/')
+regexLink0 = re.compile('.*?\s?\[\[link0\]\](?: \(.*?\))?:\s?', re.U | re.S)
+regexAnnotation = re.compile('\[\[(?:link|com)\d+\]\]', re.U | re.S)
 SPEAKER_CLASSES = ['Abgeordneter', 'Abgeordnete']
 PRES_CLASSES = ['Präsident', 'Präsidentin']
-PARAGRAPH_CLASSES = ['MsoNormal', 'StandardRB', 'MsoListBullet']
+PARAGRAPH_CLASSES = ['MsoNormal', 'StandardRB', 'StandardRE', 'MsoListBullet']
 
+"""
+    elemente mit xpath finden - danach mit index/footnote ersetzen (regex)
+    auf html ? danach wieder saubere tags einfügen ?
+"""
 
 class RSS_DEBATES(MultiExtractor):
 
@@ -103,7 +133,10 @@ class DOCSECTIONS(MultiExtractor):
         XPATH = '@class'
 
     class TIMESTAMPS(MultiExtractor):
-        XPATH = './/p[@class="RE"]/span/text()'
+        """
+        Paragraphs by classname that indicates timestamp-content
+        """
+        XPATH = './/p[re:test(@class, "^(RB|RE)")]'
 
     class HREF(SingleExtractor):
         XPATH = '@href'
@@ -115,6 +148,9 @@ class DOCSECTIONS(MultiExtractor):
         XPATH = 'text()'
 
     class CONTENT_PLAIN(SingleExtractor):
+        """
+        TODO: sometimes , RE classes contain actual text
+        """
         @classmethod
         def _is_text(cls, response):
             pclass = None
@@ -127,12 +163,10 @@ class DOCSECTIONS(MultiExtractor):
 
         @classmethod
         def xt(cls, response):
-            textparts = []
-            for txt in [t for t in response.xpath('p') if cls._is_text(t)]:
-                par = txt.extract()
-                cleaned = ''.join(regexStripComments.split(par))
-                textparts.append(cleaned)
-            return '\n\n'.join([' '.join(p.splitlines()) for p in textparts])
+            """
+            Paragraphs by classname that indicates content of a statement.
+            """
+            return [t for t in response.xpath('p') if cls._is_text(t)]
 
     class CONTENT(SingleExtractor):
         """
@@ -151,7 +185,7 @@ class DOCSECTIONS(MultiExtractor):
         Parse potential timestamp-strings to numeric (min, sec) tuples
         """
         ts = []
-        for t in timestamps:
+        for t in filter(lambda v: len(v) >= 2, timestamps):
             try:
                 ts.append([int(v) for v in t.split('.')])
             except ValueError:
@@ -178,12 +212,56 @@ class DOCSECTIONS(MultiExtractor):
         for item_index, item in enumerate(response.xpath(cls.XPATH)):
             pages = []
             links = []
+            annotated = ""
+            plaintext = ""
 
             # Parse section
             rawtext = cls.CONTENT.xt(item)
-            plaintext = ''.join(regexStripTags.split(cls.CONTENT_PLAIN.xt(item)))
             classnames = cls.CLASSINFO.xt(item)
-            timestamps = cls.TIMESTAMPS.xt(item)
+            timestamps = [ST.strip_tags(ts)
+                          for ts in cls.TIMESTAMPS.xt(item)]
+
+            # P-looping, carry out annotations
+            # TODO: fails when there are links inside of comments, when this
+            #   happens, matched tag from the original text does not match
+            #   the already changed/replaced tag in the working-buffer
+            # EDIT: replacing I/comments first - that means we might have
+            #   a link inside a comment - have to deal with that, too (e.g. by
+            #   specifically looking for markup in the replaced comments)
+            paragraphs = []
+            for p in cls.CONTENT_PLAIN.xt(item):
+                html = p.extract()
+                replacelinks = [a.extract() for a in p.xpath('.//a[@href]')]
+                for i, com in enumerate(p.xpath('.//i')):
+                    if ST.strip_tags(com.extract()).startswith('('):
+                        html = html.replace(com.extract(), '[[com{}]]'.format(i))
+                for i, a in enumerate(replacelinks):
+                    html = html.replace(a, '[[link{}]]'.format(i))
+
+                plain = ST.strip_tags(html).strip()
+                if plain != '':
+                    paragraphs.append(plain)
+
+            annotated = "\n\n".join(paragraphs)
+
+            # Loop over P's again + remove annotations entirely
+            plain_paragraphs = []
+            for plain in paragraphs:
+                # Replace speaker part, if any
+                try:
+                    match = regexLink0.findall(plain)[0]
+                    plain = plain.replace(match, '')
+                except IndexError:
+                    pass
+
+                # Replace all coms+links
+                for match in regexAnnotation.findall(plain):
+                    plain = plain .replace(match, '')
+
+                plain_paragraphs.append(plain)
+
+            # Attempt to re-merge some paragraphs
+            plain_paragraphs = merge_split_paragraphs(plain_paragraphs)
 
             # Collect links
             for a in item.xpath('.//a[@href]'):
@@ -205,11 +283,14 @@ class DOCSECTIONS(MultiExtractor):
                 current_timestamp = max(timestamps)
 
             res = {'raw_text': rawtext,
-                   'full_text': plaintext,
+                   'full_text': "\n\n".join(plain_paragraphs),
+                   'annotated_text': annotated,
                    'doc_section': classnames[0] if len(classnames) else None,
                    'links': links,
                    'timestamps': timestamps,
                    'ref_timestamp': current_timestamp,
+                   'time_start': min(timestamps) if len(timestamps) else None,
+                   'time_end': max(timestamps) if len(timestamps) else None,
                    'page_start': min(pages) if len(pages) else current_maxpage,
                    'page_end': max(pages) if len(pages) else current_maxpage,
                    }

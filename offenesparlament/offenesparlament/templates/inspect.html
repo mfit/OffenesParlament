@@ -17,17 +17,26 @@
   <div>
     {% if debate %}
       <h2>{{debate}}</h2>
+      <a href="{{debate.protocol_url}}">{{debate.protocol_url}}</a>
       <table>
       {% for stmt in statements %}
         <tr>
-          <td>{{stmt.model.date}}, {{stmt.model.index}}, {{stmt.model.person_id}}</td><td></td>
+          <td>
+            <a name="{{stmt.model.index}}"></a>
+            <a href="#{{stmt.model.index}}">#{{stmt.model.index}}</a>,
+            {{stmt.model.person_id}},
+            Pages {{stmt.model.page_start}} - {{stmt.model.page_end}}</td>
+          <td>{{stmt.model.date}} - {{stmt.model.date_end}}({{stmt.model.time_start}} - {{stmt.model.time_end}})</td>
+          <td></td>
         </tr>
         <tr>
           <td width="30%">
             <div>{{stmt.orig}}</div>
-            {% for l in stmt.links %}
-            {{l}}
-            {% endfor %}
+          </td>
+          <td width="30%">
+            <pre style="white-space:pre-line">
+{{stmt.annotated}}
+            </pre>
           </td>
           <td width="30%">
             <pre style="white-space:pre-line">
