@@ -32,7 +32,8 @@ def merge_split_paragraphs(textparts):
     for p in textparts:
         if len(p) and p[0].islower():
             pindx = len(merged) - 1
-            if len(merged[pindx]) and merged[pindx][-1] == '-':
+            if len(merged) and \
+               len(merged[pindx]) and merged[pindx][-1] == '-':
                 merged[pindx] = merged[pindx][0:-1]
             merged[pindx] += p
         else:
@@ -246,15 +247,17 @@ class DOCSECTIONS(MultiExtractor):
 
             # Loop over P's again + remove annotations entirely
             plain_paragraphs = []
+            speaker_parts = []
             for plain in paragraphs:
                 # Replace speaker part, if any
                 try:
                     match = regexLink0.findall(plain)[0]
                     plain = plain.replace(match, '')
+                    speaker_parts.append(match) # keep speaker parts for later
                 except IndexError:
                     pass
 
-                # Replace all coms+links
+                # Replace all comments + links
                 for match in regexAnnotation.findall(plain):
                     plain = plain .replace(match, '')
 
@@ -264,6 +267,7 @@ class DOCSECTIONS(MultiExtractor):
             plain_paragraphs = merge_split_paragraphs(plain_paragraphs)
 
             # Collect links
+            # TODO : this is replaced by paragraph-parsing above
             for a in item.xpath('.//a[@href]'):
                 links.append((cls.HREF.xt(a), cls.TEXT.xt(a)))
 
@@ -298,9 +302,11 @@ class DOCSECTIONS(MultiExtractor):
             res['text_type'] = StatementPostprocess.detect_sectiontype(res)
             res['speaker_name'] = StatementPostprocess.get_speaker_name(res)
             res['speaker_id'] = StatementPostprocess.get_speaker_id(res)
-            res['speaker_role'] = StatementPostprocess.get_speaker_role(res)
 
-            # StatementPostprocess.get_parts(response)
+            # Use part of the word-section to detect the speaker-role
+            speaker_part = speaker_parts[0] if len(speaker_parts) else ''
+            res['speaker_role'] = StatementPostprocess.\
+                                    get_speaker_role(speaker_part)
 
             sections.append(res)
         return sections
@@ -313,6 +319,7 @@ class StatementPostprocess():
     """
 
     TAG_SPKR_ROLE_PRES = 'pres'
+    TAG_SPKR_ROLE_ABG = 'abg'
     TAG_SPKR_ROLE_OTHER = 'other'
 
     TAG_STMT_REGULAR = 'reg'
@@ -349,11 +356,16 @@ class StatementPostprocess():
                 return ids[0]
 
     @classmethod
-    def get_speaker_role(cls, data):
-        """ By examining the first word of the section """
-        return cls.TAG_SPKR_ROLE_PRES \
-               if data['full_text'].startswith(u'Präs') \
-               else cls.TAG_SPKR_ROLE_OTHER
+    def get_speaker_role(cls, textpart):
+        """ By examining the first word of the textpart containing
+            the speaker """
+        if textpart.startswith(u'Präs'):
+            return cls.TAG_SPKR_ROLE_PRES
+        elif textpart.startswith(u'Abg'):
+            return cls.TAG_SPKR_ROLE_ABG
+        else:
+            return cls.TAG_SPKR_ROLE_OTHER
+
 
 
 """

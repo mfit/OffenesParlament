@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand
 from op_scraper import models
 import json
 import io
+import datetime
 
 class Command(BaseCommand):
 
@@ -27,39 +28,48 @@ class Command(BaseCommand):
             llps = models.LegislativePeriod.objects.filter(number=llpnr)
         else:
             llps = models.LegislativePeriod.objects.all()
+
         for llp in llps:
-            for debate in models.Debate.objects.filter(llp=llp):
-                statements = []
-                for stmt in debate.debate_statements.all():
-                    statements.append(self._map(stmt))
-                fname = 'export-{}-{}.json'.format(llp.number, debate.nr)
-                if len(statements):
-                    with io.open('export/' + fname, 'w+', encoding='utf8') as f:
-                        data = json.dumps(statements, indent=2, ensure_ascii=False)
-                        f.write(data)
-                    print("Wrote {}".format(fname))
+            fname = 'export-{}.json'.format(llp.number)
+            with io.open('export/' + fname, 'w+', encoding='utf8') as f:
+                for debate in models.Debate.objects.filter(llp=llp):
+                    for stmt in debate.debate_statements.all():
+                        f.write(u"\n")
+                        f.write(u'{"index":{}}\n')
+                        f.write(json.dumps(self._map(stmt),
+                                           ensure_ascii=False) + u"\n")
+            print("Wrote {}".format(fname))
 
     def _map(self, stmt):
         """
         De-normalize and add data about person and llp to statement
         """
+
         items = [('text', stmt.full_text),
-                 ('date', unicode(stmt.date)),
-                 ('len', len(stmt.full_text))]
+                 ('date', self._convdate(stmt.date)),
+                 ('duration', self._convduration(stmt.date, stmt.date_end)),
+                 ('wordlen', len(stmt.full_text.split())),
+                 ('role', stmt.speaker_role)]
 
         if stmt.person is not None:
             items+=[
                 ('name', stmt.person.full_name),
-                ('birthdate', unicode(stmt.person.birthdate)),
+                ('birthdate', self._convdate(stmt.person.birthdate)),
+                ('deathdate', self._convdate(stmt.person.deathdate)),
+                ('deceased', bool(stmt.person.deathdate)),
                 ('current_party', unicode(stmt.person.party)),
-                # ('deceased': False)
+                ('occupation', unicode(stmt.person.occupation.strip())),
+                ('image', unicode(stmt.person.photo_link)),
             ]
-            if stmt.date is not None and stmt.person.birthdate is not None:
-                try:
-                    dt = stmt.date - stmt.person.birthdate
-                    items+=[('age', int(dt.days / 365.25))]
-                except:
-                    pass
+
+            # if stmt.date is not None and stmt.person.birthdate is not None:
+            #     try:
+            #         dt = stmt.date - datetime.datetime.combine(
+            #                             stmt.person.birthdate,
+            #                             datetime.datetime.min.time())
+            #         items+=[('age', int(dt.days / 365.25))]
+            #     except TypeError:
+            #         pass
 
         if stmt.debate is not None:
             items+=[('session_nr', stmt.debate.nr)]
@@ -68,4 +78,15 @@ class Command(BaseCommand):
 
         return dict(items)
 
+    def _convdate(self, val):
+        return val.isoformat() if val is not None else None
+
+    def _convduration(self, begin, end):
+        duration = 0
+        try:
+            duration = end - begin
+        except TypeError:
+            pass  # stmt.date and/or stmt.date_end are None
+
+        return duration.seconds if type(duration) == datetime.timedelta else 0
 
