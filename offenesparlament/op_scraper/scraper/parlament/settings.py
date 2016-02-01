@@ -28,7 +28,7 @@ STATS_ENABLED = False
 
 AUTOTHROTTLE_ENABLED = False
 
-# # Cache requests:
+# Cache requests:
 DOWNLOADER_MIDDLEWARES = {
     'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 900,
 }
