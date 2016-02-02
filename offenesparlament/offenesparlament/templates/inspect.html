@@ -4,14 +4,18 @@
   <form action="?" method="GET">
     <select name="llpnr">
       {% for l in llps %}
-        <option value="{{l.number}}">{{l}}</option>
+        <option value="{{l.number}}" {% if llpnr == l.number%}selected="selected"{% endif %}>
+          {{l}}
+        </option>
       {% endfor %}
     </select>
     <select name="debate_id">
+      <option value="">-</option>
       {% for d in debates %}
-        <option value="{{d.id}}">{{d}}</option>
+        <option value="{{d.id}}" {% if debate.id == d.id%}selected="selected"{% endif %}>{{d}}</option>
       {% endfor %}
     </select>
+    <label>Display orig.<input type="checkbox" name="show_orig" {% if show_orig%}checked="checked"{% endif %}/></label>
     <input type="submit" value="query"/>
   </form>
   <div>
@@ -27,12 +31,9 @@
             {{stmt.model.person_id}}, {{stmt.model.speaker_role}},
             Pages {{stmt.model.page_start}} - {{stmt.model.page_end}}</td>
           <td>{{stmt.model.date}} - {{stmt.model.date_end}}({{stmt.model.time_start}} - {{stmt.model.time_end}})</td>
-          <td></td>
+          {%if show_orig %}<td></td>{% endif %}
         </tr>
         <tr>
-          <td width="30%">
-            <div>{{stmt.orig}}</div>
-          </td>
           <td width="30%">
             <pre style="white-space:pre-line">
 {{stmt.annotated}}
@@ -43,6 +44,11 @@
 {{stmt.clean}}
             </pre>
           </td>
+          {%if show_orig %}
+          <td width="30%">
+            <div>{{stmt.orig}}</div>
+          </td>
+          {% endif %}
         </tr>
       {% endfor %}
       </table>
