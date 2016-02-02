@@ -9,10 +9,10 @@
         </option>
       {% endfor %}
     </select>
-    <select name="debate_id">
+    <select name="debate_nr">
       <option value="">-</option>
       {% for d in debates %}
-        <option value="{{d.id}}" {% if debate.id == d.id%}selected="selected"{% endif %}>{{d}}</option>
+        <option value="{{d.nr}}" {% if debate.id == d.id%}selected="selected"{% endif %}>{{d}}</option>
       {% endfor %}
     </select>
     <label>Display orig.<input type="checkbox" name="show_orig" {% if show_orig%}checked="checked"{% endif %}/></label>
@@ -20,7 +20,7 @@
   </form>
   <div>
     {% if debate %}
-      <h2>{{debate}}</h2>
+      <h2>{{debate.title}} <small>LLP{{llpnr}}, {{debate.date}}</small></h2>
       <a href="{{debate.protocol_url}}">{{debate.protocol_url}}</a>
       <table>
       {% for stmt in statements %}

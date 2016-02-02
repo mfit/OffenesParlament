@@ -18,8 +18,10 @@ def index(request, value=None):
             number=int(request.GET['llpnr']))
         debates = models.Debate.objects.filter(llp=llp)
 
-    if 'debate_id' in request.GET and request.GET['debate_id']:
-        debate = models.Debate.objects.get(id=int(request.GET['debate_id']))
+    if llp and 'debate_nr' in request.GET and request.GET['debate_nr']:
+        debate = models.Debate.objects.get(
+          llp=llp,
+          nr=int(request.GET['debate_nr']))
         for s in  debate.debate_statements.order_by('index').all():
             links = Selector(text=s.raw_text).xpath('.//a')
             statements.append({
@@ -35,7 +37,7 @@ def index(request, value=None):
                            'show_orig': ('show_orig' in request.GET\
                                          and request.GET['show_orig']),
                            'llpnr': llp.number if llp else False,
-                           'debates': debates,
+                           'debates': sorted(debates),
                            'debate': debate,
                            'statements': statements})
 
