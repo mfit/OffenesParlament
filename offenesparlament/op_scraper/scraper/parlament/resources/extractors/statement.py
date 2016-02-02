@@ -31,11 +31,8 @@ regexTimestamp = re.compile('([0-9]{1,2} [A-Za-z]{3} [0-9]{4})')
 regexFindPage = re.compile('Seite_([0-9]*)\.html')
 regexSpeakerId = re.compile('WWER/(PAD_[0-9]*)/')
 regexDebateNr = re.compile('/NRSITZ_([0-9]*)/')
-regexLink0 = re.compile('.*?\s?\[\[link\d+\]\](?: \(.*?\))?:\s?', re.U | re.S)
+regexSpeakerPart = re.compile('.*?\s?\[\[link\d+\]\](?: \(.*?\))?:\s?', re.U | re.S)
 regexAnnotation = re.compile('\[\[(?:link|com)\d+\]\]', re.U | re.S)
-SPEAKER_CLASSES = ['Abgeordneter', 'Abgeordnete']
-PRES_CLASSES = ['Präsident', 'Präsidentin']
-PARAGRAPH_CLASSES = ['MsoNormal', 'StandardRB', 'StandardRE', 'MsoListBullet']
 
 
 class RSS_DEBATES(MultiExtractor):
@@ -107,21 +104,35 @@ class RSS_DEBATES(MultiExtractor):
 class DOCSECTIONS(MultiExtractor):
 
     """
-    Actual debate contents. Statements. parts of a debate document.
+    Actual debate contents. Statements, parts of a debate document.
     These sections are helpful to construct the statements.
+    For llp >= 23, every section is a speech - except for some sections at
+    the beginning or end of a protocol.
     """
     XPATH = '//div[contains(@class, \'Section\')]'
     pclasses = set()  # to keep track of P's classes we find
-    replace_id = 1
+    replace_id = 1  # Used to give unique ids to parts for replacement
 
+    # Tags for speaker role
     TAG_SPKR_ROLE_PRES = 'pres'
     TAG_SPKR_ROLE_ABG = 'abg'
     TAG_SPKR_ROLE_OTHER = 'other'
 
+    # Tags for section-type (is regular debate-speech,
+    # or some other text e.g. intro on top of debate protocol)
     TAG_STMT_REGULAR = 'reg'
     TAG_STMT_OTHER = 'other'
 
+    PARAGRAPH_CLASSES = [
+        'MsoNormal',
+        'StandardRB',
+        'StandardRE',
+        'MsoListBullet',
+        # 'ZM'  # Problematic
+    ]
+
     class CLASSINFO(MultiExtractor):
+        """ Get class attribute """
         XPATH = '@class'
 
     class TIMESTAMPS(MultiExtractor):
@@ -131,24 +142,44 @@ class DOCSECTIONS(MultiExtractor):
         XPATH = './/p[re:test(@class, "^(RB|RE)")]'
 
     class HREF(SingleExtractor):
+        """ Get href attribute """
         XPATH = '@href'
 
     class NAME(SingleExtractor):
+        """ Get name attribute """
         XPATH = '@name'
 
     class TEXT(SingleExtractor):
+        """ Get text element """
         XPATH = 'text()'
 
     class MULTITEXT(MultiExtractor):
+        """ Get all text and join stripped parts together """
         XPATH = 'text()'
 
         @classmethod
         def xtclean(cls, el):
             return ''.join([v.strip() for v in cls.xt(el)])
 
+    class RAWCONTENT(SingleExtractor):
+        """
+        Get raw content of all paragraphs (mainly for comparison to see if
+        we missed something with the finer, paragaph-wise extraction).
+        """
+        @classmethod
+        def xt(cls, response):
+            textparts = []
+            for txt in response.xpath('p'):
+                textparts.append(txt.extract())
+            return '\n\n'.join([' '.join(p.splitlines()) for p in textparts])
+
     class CONTENT_PLAIN(SingleExtractor):
         """
-        TODO: sometimes , RE classes contain actual text
+        Extract paragraphs that contain actual (speech) content (as opposed
+        to elements that are empty, contain timestamps or are part of the
+        footer of protocol-pages.
+        TODO: paragraphs with RE are excluded, but sometimes it seems they
+              contain actual text
         """
         @classmethod
         def _is_text(cls, response):
@@ -157,7 +188,7 @@ class DOCSECTIONS(MultiExtractor):
                 pclass = response.xpath('.//@class').extract().pop().strip()
             except:
                 pass
-            if pclass in PARAGRAPH_CLASSES or pclass is None:
+            if pclass in DOCSECTIONS.PARAGRAPH_CLASSES or pclass is None:
                 return True
 
         @classmethod
@@ -166,17 +197,6 @@ class DOCSECTIONS(MultiExtractor):
             Paragraphs by classname that indicates content of a statement.
             """
             return [t for t in response.xpath('p') if cls._is_text(t)]
-
-    class CONTENT(SingleExtractor):
-        """
-        Main, textual content of the section
-        """
-        @classmethod
-        def xt(cls, response):
-            textparts = []
-            for txt in response.xpath('p'):
-                textparts.append(txt.extract())
-            return '\n\n'.join([' '.join(p.splitlines()) for p in textparts])
 
     @classmethod
     def _clean_timestamps(cls, timestamps):
@@ -194,8 +214,8 @@ class DOCSECTIONS(MultiExtractor):
     @classmethod
     def paragraph(cls, p):
         """
-        Clean raw-html paragraph and replace comments and links
-        with placeholders. Return resulting plain text, along with the
+        Pre-process a paragraph and replace comments and links with
+        placeholders. Return resulting plain text, along with the
         replaced comments and links. Comments and links are each a list of
         tuples: (replace_text:str, replaced_element:Selector) .
 
@@ -260,52 +280,14 @@ class DOCSECTIONS(MultiExtractor):
     @classmethod
     def get_speaker_role(cls, textpart):
         """
-        By examining the first word of the textpart containing
-        the speaker
+        Examining first word of textpart to get reference of speaker-role.
         """
-
         if textpart.startswith(u'Präs'):
             return cls.TAG_SPKR_ROLE_PRES
         elif textpart.startswith(u'Abg'):
             return cls.TAG_SPKR_ROLE_ABG
         else:
             return cls.TAG_SPKR_ROLE_OTHER
-
-    @classmethod
-    def get_speaker_id(cls, data):
-        """
-        Get from the first of the extracted links
-        """
-
-        if len(data['links']):
-            ids = regexSpeakerId.findall(data['links'][0][0])
-            if ids:
-                return ids[0]
-
-    @classmethod
-    def get_speaker_name(cls, data):
-        """
-        Get from the first of the extracted links
-        """
-
-        if len(data['links']):
-            return data['links'][0][1]
-
-    @classmethod
-    def detect_sectiontype(cls, data):
-        """ Detect the type of section from the data we extracted
-        so far.
-            - look at the first link, and test if it links to
-              a person profile
-            (- alternatively, we could test if the first line
-               matches the  regular expression "<title> <name>:" )
-        """
-        stype = cls.TAG_STMT_OTHER
-        if len(data['links']):
-            href = data['links'][0][0]
-            if 'WWER' in href:
-                stype = cls.TAG_STMT_REGULAR
-        return stype
 
     @classmethod
     def merge_split_paragraphs(cls, textparts):
@@ -326,6 +308,28 @@ class DOCSECTIONS(MultiExtractor):
         return [' '.join(p.splitlines()) for p in merged]
 
     @classmethod
+    def speaker(cls, plain, links):
+        """
+        Speaker information. If paragraph contains speaker header, return
+        a tuple with (name, parl_id, role-tag, text_removed), otherwise False
+        """
+        try:
+            match = regexSpeakerPart.findall(plain)[0]
+            replacecode, link_selector = links[0]
+            if replacecode in match:
+                name = cls.MULTITEXT.xt(link_selector)[0] # why the index?
+                personlink = cls.HREF.xt(link_selector)
+                ids = regexSpeakerId.findall(personlink)
+                speaker_id = ids[0] if len(ids) else None
+                role = cls.get_speaker_role(plain)
+                replaced = plain.replace(match, '')
+                return {"name":name, "id":speaker_id, "role": role,
+                        "found": True, "cleaned": replaced}
+
+        except IndexError:
+            return {"found": False}
+
+    @classmethod
     def xt(cls, response):
         """
         Extract sections (statements) from document (protocol)
@@ -344,11 +348,8 @@ class DOCSECTIONS(MultiExtractor):
         for item_index, item in enumerate(response.xpath(cls.XPATH)):
             pages = []
             stmt_links = []
-            annotated = ""
-            plaintext = ""
 
             # Parse section
-            rawtext = cls.CONTENT.xt(item)
             classnames = cls.CLASSINFO.xt(item)
             timestamps = [ST.strip_tags(ts)
                           for ts in cls.TIMESTAMPS.xt(item)]
@@ -358,32 +359,30 @@ class DOCSECTIONS(MultiExtractor):
             plain_pars = []
             annotated_pars = []
             speaker_parts = []
-            for p in cls.CONTENT_PLAIN.xt(item):
+            for pi, p in enumerate(cls.CONTENT_PLAIN.xt(item)):
+
+                # Pre-process paragraph
                 plain, comments, links = cls.paragraph(p)
-                if plain != '':
+                if plain == '':
+                    continue
 
-                    # collect/append all links
-                    stmt_links += ([(cls.HREF.xt(a), cls.TEXT.xt(a))
-                                    for k, a in links])
-                    try:
-                        match = regexLink0.findall(plain)[0]
-                        plain = plain.replace(match, '')
-                        # keep speaker parts for later
-                        speaker_parts.append(match)
-                    except IndexError:
-                        pass
+                # collect/append all links
+                stmt_links += ([(cls.HREF.xt(a), cls.TEXT.xt(a))
+                                for k, a in links])
 
-                    paragraphs.append(plain)
-                    plain_pars.append(cls.p_mkplain(plain, comments, links))
-                    annotated_pars.append(
-                        cls.p_mkannotate(plain, comments, links))
+                speakerdoc = cls.speaker(plain, links)
+                if speakerdoc['found']:
+                    plain = speakerdoc['cleaned']
+                    speaker_parts.append((pi, speakerdoc))
+
+                paragraphs.append(plain)
+                plain_pars.append(cls.p_mkplain(plain, comments, links))
+                annotated_pars.append(
+                    cls.p_mkannotate(plain, comments, links))
 
             # Attempt to re-merge paragraphs that were split up only by
             # page-breaks of the protocol
             plain_pars = cls.merge_split_paragraphs(plain_pars)
-
-            full_text = "\n\n".join(plain_pars)
-            annotated = "\n\n".join(annotated_pars)
 
             # Look for page-number
             for a in item.xpath('.//a[@name]'):
@@ -400,9 +399,9 @@ class DOCSECTIONS(MultiExtractor):
             if len(timestamps):
                 current_timestamp = max(timestamps)
 
-            res = {'raw_text': rawtext,
-                   'full_text': full_text,
-                   'annotated_text': annotated,
+            res = {'raw_text': cls.RAWCONTENT.xt(item),
+                   'full_text': "\n\n".join(plain_pars),
+                   'annotated_text': "\n\n".join(annotated_pars),
                    'doc_section': classnames[0] if len(classnames) else None,
                    'links': stmt_links,
                    'timestamps': timestamps,
@@ -413,13 +412,19 @@ class DOCSECTIONS(MultiExtractor):
                    'page_end': max(pages) if len(pages) else current_maxpage,
                    }
 
-            res['text_type'] = cls.detect_sectiontype(res)
-            res['speaker_name'] = cls.get_speaker_name(res)
-            res['speaker_id'] = cls.get_speaker_id(res)
+            # If speaker parts have been identified (and they occured in
+            # the first (0th) paragraph, use speaker info
+            if len(speaker_parts) and  speaker_parts[0][0] == 0:
+                res['text_type'] =  cls.TAG_STMT_REGULAR
+                res['speaker_name'] = speaker_parts[0][1]['name']
+                res['speaker_id'] = speaker_parts[0][1]['id']
+                res['speaker_role'] = speaker_parts[0][1]['role']
+            else:
+                res['text_type'] =  cls.TAG_STMT_OTHER
+                res['speaker_name'] = None
+                res['speaker_id'] = None
+                res['speaker_role'] = None
 
-            # Use part of the word-section to detect the speaker-role
-            speaker_part = speaker_parts[0] if len(speaker_parts) else ''
-            res['speaker_role'] = cls.get_speaker_role(speaker_part)
 
             sections.append(res)
         return sections
