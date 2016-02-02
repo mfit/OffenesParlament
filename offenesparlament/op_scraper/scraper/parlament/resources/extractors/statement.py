@@ -15,8 +15,10 @@ from parlament.settings import BASE_HOST
 import logging
 logger = logging.getLogger(__name__)
 
+
 class ST():
     regexStripTags = re.compile('<.*?>')
+
     @classmethod
     def strip_tags(cls, txt):
         try:
@@ -24,23 +26,6 @@ class ST():
         except TypeError:
             print("Cannot strip tags from {}".format(txt))
             return ''
-
-def merge_split_paragraphs(textparts):
-    """
-    Re-merge paragraphs that have been divided by pagebreaks, footer lines etc.
-    """
-    merged = []
-    for p in textparts:
-        if len(p) and p[0].islower():
-            pindx = len(merged) - 1
-            if len(merged) and \
-               len(merged[pindx]) and merged[pindx][-1] == '-':
-                merged[pindx] = merged[pindx][0:-1]
-            merged[pindx] += p
-        else:
-            merged.append(p)
-
-    return [' '.join(p.splitlines()) for p in merged]
 
 regexTimestamp = re.compile('([0-9]{1,2} [A-Za-z]{3} [0-9]{4})')
 regexFindPage = re.compile('Seite_([0-9]*)\.html')
@@ -52,10 +37,6 @@ SPEAKER_CLASSES = ['Abgeordneter', 'Abgeordnete']
 PRES_CLASSES = ['Präsident', 'Präsidentin']
 PARAGRAPH_CLASSES = ['MsoNormal', 'StandardRB', 'StandardRE', 'MsoListBullet']
 
-"""
-    elemente mit xpath finden - danach mit index/footnote ersetzen (regex)
-    auf html ? danach wieder saubere tags einfügen ?
-"""
 
 class RSS_DEBATES(MultiExtractor):
 
@@ -106,11 +87,12 @@ class RSS_DEBATES(MultiExtractor):
             try:
                 dnr = int(regexDebateNr.findall(protocol_url)[0])
             except (IndexError, ValueError):
-                logger.warn(u"Could not parse debate_nr from '{}'".format(protocol_url))
+                logger.warn(
+                    u"Could not parse debate_nr from '{}'".format(protocol_url))
 
             return {
                 'date': dtime,
-                'debate_type': None, #  is part of the url, actually
+                'debate_type': None,  # is part of the url, actually
                 'title': cls.TITLE.xt(response),
                 'protocol_url': protocol_url,
                 'nr': dnr,
@@ -125,7 +107,7 @@ class RSS_DEBATES(MultiExtractor):
 class DOCSECTIONS(MultiExtractor):
 
     """
-    Parts of a debate document
+    Actual debate contents. Statements. parts of a debate document.
     These sections are helpful to construct the statements.
     """
     XPATH = '//div[contains(@class, \'Section\')]'
@@ -159,6 +141,7 @@ class DOCSECTIONS(MultiExtractor):
 
     class MULTITEXT(MultiExtractor):
         XPATH = 'text()'
+
         @classmethod
         def xtclean(cls, el):
             return ''.join([v.strip() for v in cls.xt(el)])
@@ -274,7 +257,6 @@ class DOCSECTIONS(MultiExtractor):
 
         return p
 
-
     @classmethod
     def get_speaker_role(cls, textpart):
         """
@@ -309,7 +291,6 @@ class DOCSECTIONS(MultiExtractor):
         if len(data['links']):
             return data['links'][0][1]
 
-
     @classmethod
     def detect_sectiontype(cls, data):
         """ Detect the type of section from the data we extracted
@@ -326,8 +307,23 @@ class DOCSECTIONS(MultiExtractor):
                 stype = cls.TAG_STMT_REGULAR
         return stype
 
+    @classmethod
+    def merge_split_paragraphs(cls, textparts):
+        """
+        Re-merge paragraphs that have been divided by pagebreaks, footer lines etc.
+        """
+        merged = []
+        for p in textparts:
+            if len(p) and p[0].islower():
+                pindx = len(merged) - 1
+                if len(merged) and \
+                   len(merged[pindx]) and merged[pindx][-1] == '-':
+                    merged[pindx] = merged[pindx][0:-1]
+                merged[pindx] += p
+            else:
+                merged.append(p)
 
-
+        return [' '.join(p.splitlines()) for p in merged]
 
     @classmethod
     def xt(cls, response):
@@ -372,17 +368,19 @@ class DOCSECTIONS(MultiExtractor):
                     try:
                         match = regexLink0.findall(plain)[0]
                         plain = plain.replace(match, '')
-                        speaker_parts.append(match) # keep speaker parts for later
+                        # keep speaker parts for later
+                        speaker_parts.append(match)
                     except IndexError:
                         pass
 
                     paragraphs.append(plain)
                     plain_pars.append(cls.p_mkplain(plain, comments, links))
-                    annotated_pars.append(cls.p_mkannotate(plain, comments, links))
+                    annotated_pars.append(
+                        cls.p_mkannotate(plain, comments, links))
 
             # Attempt to re-merge paragraphs that were split up only by
             # page-breaks of the protocol
-            plain_pars = merge_split_paragraphs(plain_pars)
+            plain_pars = cls.merge_split_paragraphs(plain_pars)
 
             full_text = "\n\n".join(plain_pars)
             annotated = "\n\n".join(annotated_pars)
@@ -425,5 +423,3 @@ class DOCSECTIONS(MultiExtractor):
 
             sections.append(res)
         return sections
-
-
