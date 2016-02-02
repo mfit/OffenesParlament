@@ -12,6 +12,7 @@ def index(request, value=None):
     debates = []
     debate = False
     statements = []
+    llp = None
     if 'llpnr' in request.GET:
         llp = models.LegislativePeriod.objects.get(
             number=int(request.GET['llpnr']))
