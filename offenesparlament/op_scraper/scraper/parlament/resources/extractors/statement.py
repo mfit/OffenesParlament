@@ -32,6 +32,8 @@ regexFindPage = re.compile('Seite_([0-9]*)\.html')
 regexSpeakerId = re.compile('WWER/(PAD_[0-9]*)/')
 regexDebateNr = re.compile('/NRSITZ_([0-9]*)/')
 regexSpeakerPart = re.compile('.*?\s?\[\[link\d+\]\](?: \(.*?\))?:\s?', re.U | re.S)
+regexSpeakerPartDry = re.compile('^(.*?)\s([^\(]*?)\((.*?)\):\s?', re.U | re.S)
+
 regexAnnotation = re.compile('\[\[(?:link|com)\d+\]\]', re.U | re.S)
 
 
@@ -328,6 +330,12 @@ class DOCSECTIONS(MultiExtractor):
 
         except IndexError:
             return {"found": False}
+
+        # TODO : look for un-linked name patterns as well
+        # try:
+        #     match = regexSpeakerPartDry.match(plain)
+        #     if match != None:
+
 
     @classmethod
     def xt(cls, response):
