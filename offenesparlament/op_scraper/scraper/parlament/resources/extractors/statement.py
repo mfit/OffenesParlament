@@ -132,6 +132,13 @@ class DOCSECTIONS(MultiExtractor):
     pclasses = set()  # to keep track of P's classes we find
     replace_id = 1
 
+    TAG_SPKR_ROLE_PRES = 'pres'
+    TAG_SPKR_ROLE_ABG = 'abg'
+    TAG_SPKR_ROLE_OTHER = 'other'
+
+    TAG_STMT_REGULAR = 'reg'
+    TAG_STMT_OTHER = 'other'
+
     class CLASSINFO(MultiExtractor):
         XPATH = '@class'
 
@@ -234,7 +241,7 @@ class DOCSECTIONS(MultiExtractor):
         return ST.strip_tags(html).strip(), comments, links
 
     @classmethod
-    def paragraph_build_plain(cls, p, comments, links):
+    def p_mkplain(cls, p, comments, links):
         """
         Build the final plain-text representation.
         For now, this simply replaces all comments + links placeholders.
@@ -244,7 +251,7 @@ class DOCSECTIONS(MultiExtractor):
         return p
 
     @classmethod
-    def paragraph_build_annotated(cls, p, comments, links):
+    def p_mkannotate(cls, p, comments, links):
         """
         Build the final annotated (html) representation of a paragraph.
         """
@@ -257,7 +264,6 @@ class DOCSECTIONS(MultiExtractor):
             p = p.replace(key, el.toxml())
 
         for key, content in links:
-            print(type (content))
             el = xml.dom.minidom.Element('a')
             el.setAttribute('class', 'ref')
             el.setAttribute('href', cls.HREF.xt(content))
@@ -267,6 +273,60 @@ class DOCSECTIONS(MultiExtractor):
             p = p.replace(key, el.toxml())
 
         return p
+
+
+    @classmethod
+    def get_speaker_role(cls, textpart):
+        """
+        By examining the first word of the textpart containing
+        the speaker
+        """
+
+        if textpart.startswith(u'Präs'):
+            return cls.TAG_SPKR_ROLE_PRES
+        elif textpart.startswith(u'Abg'):
+            return cls.TAG_SPKR_ROLE_ABG
+        else:
+            return cls.TAG_SPKR_ROLE_OTHER
+
+    @classmethod
+    def get_speaker_id(cls, data):
+        """
+        Get from the first of the extracted links
+        """
+
+        if len(data['links']):
+            ids = regexSpeakerId.findall(data['links'][0][0])
+            if ids:
+                return ids[0]
+
+    @classmethod
+    def get_speaker_name(cls, data):
+        """
+        Get from the first of the extracted links
+        """
+
+        if len(data['links']):
+            return data['links'][0][1]
+
+
+    @classmethod
+    def detect_sectiontype(cls, data):
+        """ Detect the type of section from the data we extracted
+        so far.
+            - look at the first link, and test if it links to
+              a person profile
+            (- alternatively, we could test if the first line
+               matches the  regular expression "<title> <name>:" )
+        """
+        stype = cls.TAG_STMT_OTHER
+        if len(data['links']):
+            href = data['links'][0][0]
+            if 'WWER' in href:
+                stype = cls.TAG_STMT_REGULAR
+        return stype
+
+
 
 
     @classmethod
@@ -287,7 +347,7 @@ class DOCSECTIONS(MultiExtractor):
 
         for item_index, item in enumerate(response.xpath(cls.XPATH)):
             pages = []
-            links = []
+            stmt_links = []
             annotated = ""
             plaintext = ""
 
@@ -299,15 +359,16 @@ class DOCSECTIONS(MultiExtractor):
 
             # P-looping, carry out annotations
             paragraphs = []
-            plain_paragraphs = []
-            annotated_paragraphs = []
+            plain_pars = []
+            annotated_pars = []
             speaker_parts = []
             for p in cls.CONTENT_PLAIN.xt(item):
                 plain, comments, links = cls.paragraph(p)
-
                 if plain != '':
 
-                    # Replace speaker part, if any
+                    # collect/append all links
+                    stmt_links += ([(cls.HREF.xt(a), cls.TEXT.xt(a))
+                                    for k, a in links])
                     try:
                         match = regexLink0.findall(plain)[0]
                         plain = plain.replace(match, '')
@@ -316,19 +377,15 @@ class DOCSECTIONS(MultiExtractor):
                         pass
 
                     paragraphs.append(plain)
-
-                    plain_paragraphs.append(
-                        cls.paragraph_build_plain(plain, comments, links))
-
-                    annotated_paragraphs.append(
-                        cls.paragraph_build_annotated(plain, comments, links))
+                    plain_pars.append(cls.p_mkplain(plain, comments, links))
+                    annotated_pars.append(cls.p_mkannotate(plain, comments, links))
 
             # Attempt to re-merge paragraphs that were split up only by
             # page-breaks of the protocol
-            plain_paragraphs = merge_split_paragraphs(plain_paragraphs)
+            plain_pars = merge_split_paragraphs(plain_pars)
 
-            full_text = "\n\n".join(plain_paragraphs)
-            annotated = "\n\n".join(annotated_paragraphs)
+            full_text = "\n\n".join(plain_pars)
+            annotated = "\n\n".join(annotated_pars)
 
             # Look for page-number
             for a in item.xpath('.//a[@name]'):
@@ -349,7 +406,7 @@ class DOCSECTIONS(MultiExtractor):
                    'full_text': full_text,
                    'annotated_text': annotated,
                    'doc_section': classnames[0] if len(classnames) else None,
-                   'links': links,
+                   'links': stmt_links,
                    'timestamps': timestamps,
                    'ref_timestamp': current_timestamp,
                    'time_start': min(timestamps) if len(timestamps) else None,
@@ -358,94 +415,15 @@ class DOCSECTIONS(MultiExtractor):
                    'page_end': max(pages) if len(pages) else current_maxpage,
                    }
 
-            res['text_type'] = StatementPostprocess.detect_sectiontype(res)
-            res['speaker_name'] = StatementPostprocess.get_speaker_name(res)
-            res['speaker_id'] = StatementPostprocess.get_speaker_id(res)
+            res['text_type'] = cls.detect_sectiontype(res)
+            res['speaker_name'] = cls.get_speaker_name(res)
+            res['speaker_id'] = cls.get_speaker_id(res)
 
             # Use part of the word-section to detect the speaker-role
             speaker_part = speaker_parts[0] if len(speaker_parts) else ''
-            res['speaker_role'] = StatementPostprocess.\
-                                    get_speaker_role(speaker_part)
+            res['speaker_role'] = cls.get_speaker_role(speaker_part)
 
             sections.append(res)
         return sections
 
 
-class StatementPostprocess():
-
-    """
-    Extract speaker name, party, title and role
-    """
-
-    TAG_SPKR_ROLE_PRES = 'pres'
-    TAG_SPKR_ROLE_ABG = 'abg'
-    TAG_SPKR_ROLE_OTHER = 'other'
-
-    TAG_STMT_REGULAR = 'reg'
-    TAG_STMT_OTHER = 'other'
-
-    @classmethod
-    def detect_sectiontype(cls, data):
-        """ Detect the type of section from the data we extracted
-        so far.
-            - look at the first link, and test if it links to
-              a person profile
-            (- alternatively, we could test if the first line
-               matches the  regular expression "<title> <name>:" )
-        """
-        stype = cls.TAG_STMT_OTHER
-        if len(data['links']):
-            href = data['links'][0][0]
-            if 'WWER' in href:
-                stype = cls.TAG_STMT_REGULAR
-        return stype
-
-    @classmethod
-    def get_speaker_name(cls, data):
-        """ Get from the first of the extracted links """
-        if len(data['links']):
-            return data['links'][0][1]
-
-    @classmethod
-    def get_speaker_id(cls, data):
-        """ Get from the first of the extracted links """
-        if len(data['links']):
-            ids = regexSpeakerId.findall(data['links'][0][0])
-            if ids:
-                return ids[0]
-
-    @classmethod
-    def get_speaker_role(cls, textpart):
-        """ By examining the first word of the textpart containing
-            the speaker """
-        if textpart.startswith(u'Präs'):
-            return cls.TAG_SPKR_ROLE_PRES
-        elif textpart.startswith(u'Abg'):
-            return cls.TAG_SPKR_ROLE_ABG
-        else:
-            return cls.TAG_SPKR_ROLE_OTHER
-
-
-
-"""
-# Parse content of statement
-for el in scrapy.Selector(text=statement.raw_text).xpath('.//p/text()'):
-    print el.extract().encode('utf8')
-for el in scrapy.Selector(text=statement.raw_text).xpath('.//*'):
-    # all elements
-    print el.extract().encode('utf8')
-
-
-# Create xml
-import xml
-el = xml.dom.minidom.Element('p')
-textel = xml.dom.minidom.Text()
-textel.dat = 'hi'
-el.appendChild(textel)
-el.toxml()
-
-
-loop over P's
-    - loop over
-
-"""
