@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 import re
+import xml
 from scrapy import Selector
 from django.utils.html import remove_tags
 from django.utils.dateparse import parse_datetime
@@ -45,7 +46,7 @@ regexTimestamp = re.compile('([0-9]{1,2} [A-Za-z]{3} [0-9]{4})')
 regexFindPage = re.compile('Seite_([0-9]*)\.html')
 regexSpeakerId = re.compile('WWER/(PAD_[0-9]*)/')
 regexDebateNr = re.compile('/NRSITZ_([0-9]*)/')
-regexLink0 = re.compile('.*?\s?\[\[link0\]\](?: \(.*?\))?:\s?', re.U | re.S)
+regexLink0 = re.compile('.*?\s?\[\[link\d+\]\](?: \(.*?\))?:\s?', re.U | re.S)
 regexAnnotation = re.compile('\[\[(?:link|com)\d+\]\]', re.U | re.S)
 SPEAKER_CLASSES = ['Abgeordneter', 'Abgeordnete']
 PRES_CLASSES = ['Präsident', 'Präsidentin']
@@ -129,6 +130,7 @@ class DOCSECTIONS(MultiExtractor):
     """
     XPATH = '//div[contains(@class, \'Section\')]'
     pclasses = set()  # to keep track of P's classes we find
+    replace_id = 1
 
     class CLASSINFO(MultiExtractor):
         XPATH = '@class'
@@ -147,6 +149,12 @@ class DOCSECTIONS(MultiExtractor):
 
     class TEXT(SingleExtractor):
         XPATH = 'text()'
+
+    class MULTITEXT(MultiExtractor):
+        XPATH = 'text()'
+        @classmethod
+        def xtclean(cls, el):
+            return ''.join([v.strip() for v in cls.xt(el)])
 
     class CONTENT_PLAIN(SingleExtractor):
         """
@@ -193,6 +201,73 @@ class DOCSECTIONS(MultiExtractor):
                 logger.warn(u"Value error in timestamp: '{}'".format(t))
         return ts
 
+    @classmethod
+    def paragraph(cls, p):
+        """
+        Clean raw-html paragraph and replace comments and links
+        with placeholders. Return resulting plain text, along with the
+        replaced comments and links. Comments and links are each a list of
+        tuples: (replace_text:str, replaced_element:Selector) .
+
+        TODO: this method replaces I/comments first (before the links)
+            that however means there might be a link inside a comment.
+            this would have to be dealt with, e.g. by looking for markup in
+            the replaced comments
+        """
+        html = p.extract()
+        comments = []
+        links = []
+        for i, com in enumerate(p.xpath('.//i')):
+            com_extract = com.extract()
+            if ST.strip_tags(com_extract).startswith('('):
+                repl = '[[com{}]]'.format(cls.replace_id)
+                html = html.replace(com_extract, repl)
+                comments.append((repl, com))
+                cls.replace_id += 1
+        for i, a in enumerate(p.xpath('.//a[@href]')):
+            a_extract = a.extract()
+            repl = '[[link{}]]'.format(cls.replace_id)
+            html = html.replace(a_extract, repl)
+            links.append((repl, a))
+            cls.replace_id += 1
+
+        return ST.strip_tags(html).strip(), comments, links
+
+    @classmethod
+    def paragraph_build_plain(cls, p, comments, links):
+        """
+        Build the final plain-text representation.
+        For now, this simply replaces all comments + links placeholders.
+        """
+        for match in regexAnnotation.findall(p):
+            p = p.replace(match, '')
+        return p
+
+    @classmethod
+    def paragraph_build_annotated(cls, p, comments, links):
+        """
+        Build the final annotated (html) representation of a paragraph.
+        """
+        for key, content in comments:
+            textel = xml.dom.minidom.Text()
+            textel.data = ST.strip_tags(content.extract())
+            el = xml.dom.minidom.Element('i')
+            el.setAttribute('class', 'comment')
+            el.appendChild(textel)
+            p = p.replace(key, el.toxml())
+
+        for key, content in links:
+            print(type (content))
+            el = xml.dom.minidom.Element('a')
+            el.setAttribute('class', 'ref')
+            el.setAttribute('href', cls.HREF.xt(content))
+            textel = xml.dom.minidom.Text()
+            textel.data = cls.MULTITEXT.xtclean(content)
+            el.appendChild(textel)
+            p = p.replace(key, el.toxml())
+
+        return p
+
 
     @classmethod
     def xt(cls, response):
@@ -223,53 +298,37 @@ class DOCSECTIONS(MultiExtractor):
                           for ts in cls.TIMESTAMPS.xt(item)]
 
             # P-looping, carry out annotations
-            # TODO: fails when there are links inside of comments, when this
-            #   happens, matched tag from the original text does not match
-            #   the already changed/replaced tag in the working-buffer
-            # EDIT: replacing I/comments first - that means we might have
-            #   a link inside a comment - have to deal with that, too (e.g. by
-            #   specifically looking for markup in the replaced comments)
             paragraphs = []
+            plain_paragraphs = []
+            annotated_paragraphs = []
+            speaker_parts = []
             for p in cls.CONTENT_PLAIN.xt(item):
-                html = p.extract()
-                replacelinks = [a.extract() for a in p.xpath('.//a[@href]')]
-                for i, com in enumerate(p.xpath('.//i')):
-                    if ST.strip_tags(com.extract()).startswith('('):
-                        html = html.replace(com.extract(), '[[com{}]]'.format(i))
-                for i, a in enumerate(replacelinks):
-                    html = html.replace(a, '[[link{}]]'.format(i))
+                plain, comments, links = cls.paragraph(p)
 
-                plain = ST.strip_tags(html).strip()
                 if plain != '':
+
+                    # Replace speaker part, if any
+                    try:
+                        match = regexLink0.findall(plain)[0]
+                        plain = plain.replace(match, '')
+                        speaker_parts.append(match) # keep speaker parts for later
+                    except IndexError:
+                        pass
+
                     paragraphs.append(plain)
 
-            annotated = "\n\n".join(paragraphs)
+                    plain_paragraphs.append(
+                        cls.paragraph_build_plain(plain, comments, links))
 
-            # Loop over P's again + remove annotations entirely
-            plain_paragraphs = []
-            speaker_parts = []
-            for plain in paragraphs:
-                # Replace speaker part, if any
-                try:
-                    match = regexLink0.findall(plain)[0]
-                    plain = plain.replace(match, '')
-                    speaker_parts.append(match) # keep speaker parts for later
-                except IndexError:
-                    pass
+                    annotated_paragraphs.append(
+                        cls.paragraph_build_annotated(plain, comments, links))
 
-                # Replace all comments + links
-                for match in regexAnnotation.findall(plain):
-                    plain = plain .replace(match, '')
-
-                plain_paragraphs.append(plain)
-
-            # Attempt to re-merge some paragraphs
+            # Attempt to re-merge paragraphs that were split up only by
+            # page-breaks of the protocol
             plain_paragraphs = merge_split_paragraphs(plain_paragraphs)
 
-            # Collect links
-            # TODO : this is replaced by paragraph-parsing above
-            for a in item.xpath('.//a[@href]'):
-                links.append((cls.HREF.xt(a), cls.TEXT.xt(a)))
+            full_text = "\n\n".join(plain_paragraphs)
+            annotated = "\n\n".join(annotated_paragraphs)
 
             # Look for page-number
             for a in item.xpath('.//a[@name]'):
@@ -287,7 +346,7 @@ class DOCSECTIONS(MultiExtractor):
                 current_timestamp = max(timestamps)
 
             res = {'raw_text': rawtext,
-                   'full_text': "\n\n".join(plain_paragraphs),
+                   'full_text': full_text,
                    'annotated_text': annotated,
                    'doc_section': classnames[0] if len(classnames) else None,
                    'links': links,
