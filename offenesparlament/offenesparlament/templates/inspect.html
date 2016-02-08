@@ -1,6 +1,11 @@
 {% extends "base_content.html" %}
 {% block container %}
   <h1>Statement Inspector</h1>
+  {% if debate %}
+  <!-- <a href=" -->
+  <a href="?llpnr={{debate.llp.number}}&debate_nr={{debate.nr|add:-1}}">&lt;&lt; {{debate.nr|add:-1}}</a> |
+  <a href="?llpnr={{debate.llp.number}}&debate_nr={{debate.nr|add:1}}">{{debate.nr|add:1}} &gt;&gt;</a>
+  {% endif %}
   <form action="?" method="GET">
     <select name="llpnr">
       {% for l in llps %}
@@ -22,6 +27,10 @@
     {% if debate %}
       <h2>{{debate.title}} <small>LLP{{llpnr}}, {{debate.date}}</small></h2>
       <a href="{{debate.protocol_url}}">{{debate.protocol_url}}</a>
+
+      <div>{% for k, v in stats.text.items %}{{k}}:{{v}} {% endfor %}</div>
+      <div>{% for k, v in stats.speaker.items %}{{k}}:{{v}} {% endfor %}</div>
+
       <table>
       {% for stmt in statements %}
         <tr>
