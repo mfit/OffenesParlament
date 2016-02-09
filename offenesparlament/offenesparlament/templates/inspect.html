@@ -25,7 +25,7 @@
   </form>
   <div>
     {% if debate %}
-      <h2>{{debate.title}} <small>LLP{{llpnr}}, {{debate.date}}</small></h2>
+      <h2>{{debate.title}} <small>{{debate.debate_type}}, LLP{{llpnr}}, {{debate.date}}</small></h2>
       <a href="{{debate.protocol_url}}">{{debate.protocol_url}}</a>
 
       <div>{% for k, v in stats.text.items %}{{k}}:{{v}} {% endfor %}</div>
