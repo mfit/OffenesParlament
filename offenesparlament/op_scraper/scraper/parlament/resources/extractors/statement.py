@@ -28,7 +28,7 @@ regexRSSTimestamp = re.compile('([0-9]{1,2} [A-Za-z]{3} [0-9]{4})')
 regexTimestamp = re.compile('(\d{1,2})\.(\d{2})\.?(\d{2})?')
 regexFindPage = re.compile('Seite_([0-9]*)\.html')
 regexSpeakerId = re.compile('WWER/(PAD_[0-9]*)/')
-regexDebateNr = re.compile('/NRSITZ_([0-9]*)/')
+regexDebateNr = re.compile('/[N,B]RSITZ_([0-9]*)/')
 regexSpeakerPart = re.compile('.*?\s?'  # name, title etc. up until link
     '\[\[link\d+\]\]'  # placeholder for link
     '\s?(?:\(.*?\))?'  # optional political party in brackets
