@@ -37,6 +37,9 @@ regexSpeakerPart = re.compile('.*?\s?'  # name, title etc. up until link
     re.U | re.S)
 regexAnnotation = re.compile('\[\[(?:link|com)\d+\]\]', re.U | re.S)
 
+# When re-building paragraphs, prefix links with this
+linkPrefix = 'https://www.parlament.gv.at'
+
 class Paragraph():
 
     replace_id = 1  # Used to give unique ids to parts for replacement
@@ -260,6 +263,8 @@ class SECTION(SingleExtractor):
     # Tags for speaker role
     TAG_SPKR_ROLE_PRES = 'pres'
     TAG_SPKR_ROLE_ABG = 'abg'
+    TAG_SPKR_ROLE_KANZLER = 'kanz'
+    TAG_SPKR_ROLE_MINISTER = 'min'
     TAG_SPKR_ROLE_OTHER = 'other'
 
     class ALL_TEXT(SingleExtractor):
@@ -311,7 +316,7 @@ class SECTION(SingleExtractor):
             'RB',
             'RE'
 
-            # problematic
+            # problematic (contains content sometimes)
             # 'ZM'
         ]
 
@@ -345,30 +350,74 @@ class SECTION(SingleExtractor):
             return cls.TAG_SPKR_ROLE_PRES
         elif textpart.startswith(u'Abg'):
             return cls.TAG_SPKR_ROLE_ABG
+        elif textpart.startswith(u'Bundeskanz'):
+            return cls.TAG_SPKR_ROLE_KANZLER
+        elif textpart.startswith(u'Bundesmin'):
+            return cls.TAG_SPKR_ROLE_MINISTER
         else:
             return cls.TAG_SPKR_ROLE_OTHER
 
     @classmethod
     def detect_speaker(cls, plain, links):
         """
-        Speaker information. If paragraph contains speaker header, return
-        a tuple with (name, parl_id, role-tag, text_removed), otherwise False
+        Speaker information. If paragraph contains speaker header.
+        Return a dictionary with (name, id, role-tag, cleaned-text, ...) and
+        False otherwise.
+        Less strict version. Test a few things, then accept it as speaker-info.
         """
-        try:
-            match = regexSpeakerPart.findall(plain)[0]
-            replacecode, link_selector = links[0]
-            if replacecode in match:
-                name = cls.ALL_TEXT.xt(link_selector)
-                personlink = cls.HREF.xt(link_selector)
-                ids = regexSpeakerId.findall(personlink)
-                speaker_id = ids[0] if len(ids) else None
-                role = cls.get_speaker_role(plain)
-                replaced = plain.replace(match, '')
-                return {"name":name, "id":speaker_id, "role": role,
-                        "found": True, "cleaned": replaced}
-        except IndexError:
-            pass
-        return {"found": False}
+
+        res = {"found": False}
+        parts = plain.split(':')
+        if len(parts) < 2 or not len(links):
+            # must have the colon, must have at least one link
+            return res
+
+        speakerpart = parts[0]
+        replacecode, link_selector = links[0]
+
+        if replacecode not in speakerpart:
+            # speakerpart must contain the first link
+            return res
+
+        tokens = speakerpart.split()
+        if len(tokens) > 20:
+            # must not have more than 20 words before colon
+            return res
+
+        name = cls.ALL_TEXT.xt(link_selector)
+        personlink = cls.HREF.xt(link_selector)
+        ids = regexSpeakerId.findall(personlink)
+        speaker_id = ids[0] if len(ids) else None
+        role = cls.get_speaker_role(plain)
+        replaced = ':'.join(parts[1:]).strip()
+        res = {"name":name,
+               "id":speaker_id,
+               "role": role,
+               "found": True,
+               "cleaned": replaced}
+        return res
+
+    # @classmethod
+    # def _detect_speaker2(cls, plain, links):
+    #     """
+    #     Speaker information.
+    #     Regex, (too) strict version.
+    #     """
+    #     try:
+    #         match = regexSpeakerPart.findall(plain)[0]
+    #         replacecode, link_selector = links[0]
+    #         if replacecode in match:
+    #             name = cls.ALL_TEXT.xt(link_selector)
+    #             personlink = cls.HREF.xt(link_selector)
+    #             ids = regexSpeakerId.findall(personlink)
+    #             speaker_id = ids[0] if len(ids) else None
+    #             role = cls.get_speaker_role(plain)
+    #             replaced = plain.replace(match, '')
+    #             return {"name":name, "id":speaker_id, "role": role,
+    #                     "found": True, "cleaned": replaced}
+    #     except IndexError:
+    #         pass
+    #     return {"found": False}
 
     @classmethod
     def p_mkplain(cls, p, comments, links):
@@ -403,7 +452,7 @@ class SECTION(SingleExtractor):
         for key, content in links:
             el = minidom.Element('a')
             el.setAttribute('class', 'ref')
-            el.setAttribute('href', cls.HREF.xt(content))
+            el.setAttribute('href', linkPrefix + cls.HREF.xt(content))
             textel = minidom.Text()
             textel.data = cls.ALL_TEXT.xt(content)
             el.appendChild(textel)
@@ -476,7 +525,7 @@ class SECTION(SingleExtractor):
 
         res = {'raw_text': cls.RAWCONTENT.xt(item),
                'full_text': "\n\n".join(plain_pars),
-               'annotated_text': "\n\n".join(annotated_pars),
+               'annotated_text': '<p>' + '</p><p>'.join(annotated_pars) + '</p>',
                'doc_section': classnames[0] if len(classnames) else None,
                'timestamps': timestamps,
                'pages': pages,

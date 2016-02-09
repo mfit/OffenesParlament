@@ -810,6 +810,7 @@ class DebateStatement(models.Model):
     page_start = models.IntegerField(null=True)
     page_end = models.IntegerField(null=True)
 
+    # Start end and timestamps as they were fetched
     time_start = models.CharField(max_length=12, null=True, blank=True)
     time_end = models.CharField(max_length=12, null=True, blank=True)
 

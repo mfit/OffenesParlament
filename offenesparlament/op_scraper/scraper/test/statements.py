@@ -39,12 +39,36 @@ class TestParseDebateXV53(unittest.TestCase):
         content = open_or_fetch(fname, debate_url)
         self.doc = Selector(text=content)
 
+    def test_debate_overview(self):
+        sections = DOCSECTIONS.xt(self.doc)
+        self.assertEquals(len([s for s in sections if s['text_type'] == 'other']), 2)
+        self.assertEquals(len([s for s in sections if s['text_type'] == 'reg']), 355)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'other']), 0)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'pres']), 197)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'abg']), 147)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'min']), 10)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'kanz']), 1)
+
     def test_speaker_detect(self):
         sections = DOCSECTIONS.xt(self.doc)
         section = sections[39]
         self.assertEquals(section['speaker_id'], 'PAD_51579')
         self.assertTrue(section['full_text'].startswith(u'Frau Präsidentin!'))
 
+    def test_time_and_pages(self):
+        sections = DOCSECTIONS.xt(self.doc)
+
+        self.assertEquals(sections[39]['time_start'], [10, 44, 40])
+        self.assertEquals(sections[39]['time_end'], [10, 49])
+
+        self.assertEquals(sections[39]['page_start'], 61)
+        self.assertEquals(sections[39]['page_end'], 62)
+        self.assertEquals(sections[40]['page_start'], 62)
+        self.assertEquals(sections[40]['page_end'], 62)
+        self.assertEquals(sections[190]['page_start'], 167)
+        self.assertEquals(sections[190]['page_end'], 167)
+        self.assertEquals(sections[191]['page_start'], 168)
+        self.assertEquals(sections[191]['page_end'], 168)
 
 class TestParseDebateXV51(unittest.TestCase):
     """
@@ -64,16 +88,13 @@ class TestParseDebateXV51(unittest.TestCase):
 
     def test_debate_overview(self):
         sections = DOCSECTIONS.xt(self.doc)
-        self.assertEquals(len([s for s in sections if s['text_type'] == 'other']),
-                          3)
-        self.assertEquals(len([s for s in sections if s['text_type'] == 'reg']),
-                          483)
-        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'other']),
-                          45)
-        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'pres']),
-                          259)
-        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'abg']),
-                          173)
+        self.assertEquals(len([s for s in sections if s['text_type'] == 'other']), 2)
+        self.assertEquals(len([s for s in sections if s['text_type'] == 'reg']), 484)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'other']), 1)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'pres']), 259)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'abg']), 179)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'min']), 45)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'kanz']), 0)
 
     def test_plaintext_extraction(self):
         unicode_firstp = u"""Für diese Sitzung hat das Bundeskanzleramt über Vertretung von Mitgliedern der Bundesregierung folgende Mitteilungen gemacht:"""
@@ -87,12 +108,12 @@ class TestParseDebateXV51(unittest.TestCase):
 
     def test_annotatedtext_extraction(self):
         unicode_firstp = u"""Für diese Sitzung hat das Bundeskanzleramt über Vertretung von Mitgliedern der Bundesregierung folgende Mitteilungen gemacht:"""
-        unicode_secondp = u"""Die Bundesministerin für Familien und Jugend Dr. Sophie Karmasin wird durch die Bundesministerin für Inneres <a class="ref" href="/WWER/PAD_08214/index.shtml">Mag. Johanna Mikl-Leitner</a> vertreten."""
+        unicode_secondp = u"""Die Bundesministerin für Familien und Jugend Dr. Sophie Karmasin wird durch die Bundesministerin für Inneres <a class="ref" href="https://www.parlament.gv.at/WWER/PAD_08214/index.shtml">Mag. Johanna Mikl-Leitner</a> vertreten."""
         sections = DOCSECTIONS.xt(self.doc)
         section = sections[3]
-        paragraphs = section['annotated_text'].split('\n\n')
+        paragraphs = section['annotated_text'].split('</p><p>')
         self.assertEquals(len(paragraphs), 5, "Statement contains 5 paragraphs")
-        self.assertEquals(paragraphs[0], unicode_firstp)
+        self.assertEquals(paragraphs[0], '<p>' + unicode_firstp)
         self.assertEquals(paragraphs[1], unicode_secondp)
 
 
@@ -114,11 +135,13 @@ class TestParseDebateXIII49(unittest.TestCase):
 
     def test_debate_overview(self):
         sections = DOCSECTIONS.xt(self.doc)
-        self.assertEquals(len([s for s in sections if s['text_type'] == 'other']), 4)
-        self.assertEquals(len([s for s in sections if s['text_type'] == 'reg']), 97)
-        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'other']), 4)
+        self.assertEquals(len([s for s in sections if s['text_type'] == 'other']), 2)
+        self.assertEquals(len([s for s in sections if s['text_type'] == 'reg']), 99)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'other']), 0)
         self.assertEquals(len([s for s in sections if s['speaker_role'] == 'pres']), 56)
-        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'abg']), 37)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'abg']), 39)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'min']), 4)
+        self.assertEquals(len([s for s in sections if s['speaker_role'] == 'kanz']), 0)
 
     def test_plaintext_extraction(self):
         unicode_firstp = u"""Meine sehr verehrten Damen und Herren!  Herr Bundesminister! Wir haben jetzt von Ihnen 28 Antworten auf 28 Fragen  die niemand gestellt hat, erhalten. Die 28 Fra­gen, die Sie nicht beantwortet haben, werden Sie ein zweites Mal beantworten können, und zwar im parlamentarischen Untersuchungsausschuss. """
@@ -135,10 +158,10 @@ class TestParseDebateXIII49(unittest.TestCase):
         unicode_lastp = u"""Deshalb sehe ich den Untersuchungssausschuss als eine der größten politischen Chancen dieser Republik <i class="comment">(Zwischenruf des Abg. Großruck)</i> und hoffe, dass dieses Haus diese Chance nützt. – Danke schön. <i class="comment">(Beifall bei den Grünen. – Abg. Neuge­bauer: Vorverurteiler!)</i>"""
         sections = DOCSECTIONS.xt(self.doc)
         section = sections[14]
-        paragraphs = section['annotated_text'].split('\n\n')
+        paragraphs = section['annotated_text'].split('</p><p>')
         self.assertEquals(len(paragraphs), 28)
-        self.assertEquals(paragraphs[0], unicode_firstp)
-        self.assertEquals(paragraphs[27], unicode_lastp)
+        self.assertEquals(paragraphs[0], '<p>'+unicode_firstp)
+        self.assertEquals(paragraphs[27], unicode_lastp+'</p>')
 
     def test_timestamp_extraction(self):
         sections = DOCSECTIONS.xt(self.doc)
@@ -177,7 +200,7 @@ Klatschen!)</i></span></p>
         speaker = SECTION.detect_speaker(p.plain, p.links)
         self.assertEqual(speaker['found'], True)
         self.assertEqual(speaker['id'], 'PAD_83296')
-        self.assertEqual(speaker['role'], 'other')
+        self.assertEqual(speaker['role'], 'min')
 
 
     def test_detect_speaker_minister(self):
@@ -257,7 +280,7 @@ dafür. [[com4]]"""
         speaker = SECTION.detect_speaker(plain, links)
         self.assertEqual(speaker['found'], True)
         self.assertEqual(speaker['id'], 'PAD_83296')
-        self.assertEqual(speaker['role'], 'other')
+        self.assertEqual(speaker['role'], 'min')
         self.assertTrue(speaker['cleaned'].startswith('Herr Bundesminister'))
 
     def test_colon_inside_comment(self):
