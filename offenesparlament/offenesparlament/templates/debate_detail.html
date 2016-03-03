@@ -46,7 +46,8 @@
 
     <div class="statement statement-{{ stmt.speaker_role}}">
       <h3><a href="{{ stmt.person.slug }}">{{stmt.person}}</a></h3>
-      {{stmt.date}} {{stmt.time_anchor}}
+      {{stmt.date}}
+      <!-- {{stmt.time_anchor}} -->
       <!-- ({{ stmt.speaker_role}}) -->
       <p>{{stmt.annotated_text | safe}}</p>
     </div>
