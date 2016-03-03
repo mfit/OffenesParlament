@@ -1,0 +1,46 @@
+{% extends "base_content.html" %}
+
+{% load django_bootstrap_breadcrumbs %}
+{% block breadcrumbs %}
+  {{ block.super }}
+  {% breadcrumb "Debatten" "debates_list" %}
+{% endblock %}
+
+{% block ggp_selector %}{% endblock %}
+
+{% block title %}Debatten{% endblock %}
+
+{% block content %}
+<h1>Debatten</h1>
+<p class="explanation">
+    Hier finden Sie eine chronologisch geordnete Liste der Debatten des
+    National- und Bundesrates.
+</p>
+
+<div class="section">
+  <table>
+    <thead>
+      <tr>
+        <th>Titel</th>
+        <th>Datum</th>
+        <th>Typ</th>
+        <th>Nr.</th>
+        <th>Legislaturperiode</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for d in debates %}
+      <tr>
+        <td><a href="{{d.id}}">{{d.title}}</a></td>
+        <td>{{d.date}}</td>
+        <td>{{d.debate_type}}</td>
+        <td>{{d.nr}}</td>
+        <td>{{d.llp}}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+{% endblock %}

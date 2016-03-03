@@ -1,0 +1,58 @@
+{% extends "base_content.html" %}
+
+{% load django_bootstrap_breadcrumbs %}
+{% block breadcrumbs %}
+  {{ block.super }}
+  {% breadcrumb "Debatten" "debates_list" %}
+  {% breadcrumb debate.title "debate_detail" %}
+{% endblock %}
+
+
+{% block title %}{{ debate.title }}{% endblock %}
+
+{% block content %}
+<h1>{{ debate.title }}</h1>
+
+<div class="section">
+  <table>
+    <thead>
+      <tr>
+        <th>Datum</th>
+        <th>Typ</th>
+        <th>Nr.</th>
+        <th>Legislaturperiode</th>
+        <th>Quelle</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{debate.date}}</td>
+        <td>{{debate.debate_type}}</td>
+        <td>{{debate.nr}}</td>
+        <td>{{debate.llp}}</td>
+        <td><a href="{{debate.protocol_url}}">{{debate.protocol_url}}</a></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>Redebeiträge</h2>
+
+  {% for stmt in statements %}
+
+    <a name="page-{{stmt.page_start}}"></a>
+    <a name="ts-{{stmt.time_anchor}}"></a>
+
+    <div class="statement statement-{{ stmt.speaker_role}}">
+      <h3><a href="{{ stmt.person.slug }}">{{stmt.person}}</a></h3>
+      {{stmt.date}} {{stmt.time_anchor}}
+      <!-- ({{ stmt.speaker_role}}) -->
+      <p>{{stmt.annotated_text | safe}}</p>
+    </div>
+
+  {% endfor %}
+
+</div>
+
+{% endblock %}

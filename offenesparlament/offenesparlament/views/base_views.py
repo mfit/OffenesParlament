@@ -4,6 +4,7 @@ from op_scraper.models import Person
 from op_scraper.models import Law
 from op_scraper.models import LegislativePeriod
 from op_scraper.models import Keyword
+from op_scraper.models import Debate, DebateStatement
 from django.db.models import Count, Max
 
 import datetime
@@ -124,3 +125,24 @@ def _ensure_ggp_is_set(request, ggp_roman_numeral=None):
     llp = LegislativePeriod.objects.get(
         roman_numeral=request.session['ggp_roman_numeral'])
     return llp
+
+def debate_list(request):
+    debates = Debate.objects.select_related('llp').order_by('date', 'nr')
+    context = {'debates': debates}
+    return render(request, 'debate_list.html', context)
+
+def debate_detail(request, id):
+    debate = Debate.objects.select_related('llp').get(id=id)
+    def stmtprepare(stmt):
+        try:
+            stmt.time_anchor = '-'.join([n.strip().zfill(2) for n in
+                                         stmt.time_start[1:-1].split(',')[0:2]])
+        except:
+            stmt.time_anchor = ''
+        return stmt
+    statements = map(stmtprepare,
+                     debate.debate_statements.select_related('person')
+                                .filter(text_type='reg')
+                                .order_by('index'))
+    context = {'debate': debate, 'statements': statements}
+    return render(request, 'debate_detail.html', context)

@@ -27,6 +27,9 @@ urlpatterns = patterns(
     url(r'^schlagworte/(?P<keyword>.+)/$',
         base_views.keyword_detail, name='keyword_detail'),
 
+    url(r'^debatten/$', base_views.debate_list, name='debates_list'),
+    url(r'^debatten/(?P<id>.*)/$', base_views.debate_detail, name='debates_detail'),
+
     # Search Urls
     url(r'^search/?$',
         search.JsonSearchView.as_view()),
