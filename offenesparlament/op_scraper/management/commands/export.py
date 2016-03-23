@@ -34,10 +34,13 @@ class Command(BaseCommand):
             with io.open('export/' + fname, 'w+', encoding='utf8') as f:
                 for debate in models.Debate.objects.filter(llp=llp):
                     for stmt in debate.debate_statements.all():
-                        f.write(u"\n")
-                        f.write(u'{"index":{}}\n')
-                        f.write(json.dumps(self._map(stmt),
-                                           ensure_ascii=False) + u"\n")
+                        try:
+                            f.write(u"\n")
+                            f.write(u'{"index":{}}\n')
+                            f.write(json.dumps(self._map(stmt),
+                                               ensure_ascii=False) + u"\n")
+                        except Exception as err:
+                            print(err)
             print("Wrote {}".format(fname))
 
     def _map(self, stmt):
@@ -52,13 +55,14 @@ class Command(BaseCommand):
                  ('role', stmt.speaker_role)]
 
         if stmt.person is not None:
+            occ = stmt.person.occupation
             items+=[
                 ('name', stmt.person.full_name),
                 ('birthdate', self._convdate(stmt.person.birthdate)),
                 ('deathdate', self._convdate(stmt.person.deathdate)),
                 ('deceased', bool(stmt.person.deathdate)),
                 ('current_party', unicode(stmt.person.party)),
-                ('occupation', unicode(stmt.person.occupation.strip())),
+                ('occupation', unicode(occ.strip()) if occ is not None else ''),
                 ('image', unicode(stmt.person.photo_link)),
             ]
 
