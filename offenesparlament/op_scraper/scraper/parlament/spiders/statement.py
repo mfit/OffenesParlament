@@ -47,19 +47,22 @@ class StatementSpider(BaseSpider):
 
     ALLOWED_LLPS = range(20, 26)
 
+    DEBATETYPES = ['NR', 'BR']
+
     name = "statement"
 
     def __init__(self, **kw):
         super(StatementSpider, self).__init__(**kw)
 
-        self.DEBATETYPE = kw['type'] if 'type' in kw else 'NR'
+        if 'type' in kw and kw['type'] in self.DEBATETYPES:
+            self.DEBATETYPES = [kw['type']]
         if 'llp' in kw and kw['llp'] != 'all':
             try:
-                self.LLP = roman.toRoman(int(kw['llp']))
+                self.LLP = [roman.toRoman(int(kw['llp']))]
             except:
-                self.LLP = kw['llp']
+                self.LLP = [kw['llp']]
         else:
-            self.LLP = 'XXIII'
+            self.LLP = [roman.toRoman(llp) for llp in self.ALLOWED_LLPS]
 
         self.SNR = kw['snr'] if 'snr' in kw else None
 
@@ -72,30 +75,32 @@ class StatementSpider(BaseSpider):
         """
 
         callback_requests = []
+        for llp in self.LLP:
+            for nrbr in self.DEBATETYPES:
+                params = {'view': 'RSS',
+                          'jsMode': 'RSS',
+                          'xdocumentUri': '/PAKT/STPROT/index.shtml',
+                          'NRBRBV': nrbr,
+                          'NUR_VORL': 'N',
+                          'R_PLSO': 'PL',
+                          'GP': llp,
+                          'FBEZ': 'FP_011',
+                          'listeId': '211',
+                          }
 
-        params = {'view': 'RSS',
-                  'jsMode': 'RSS',
-                  'xdocumentUri': '/PAKT/STPROT/index.shtml',
-                  'NRBRBV': self.DEBATETYPE,
-                  'NUR_VORL': 'N',
-                  'R_PLSO': 'PL',
-                  'GP': self.LLP,
-                  'FBEZ': 'FP_011',
-                  'listeId': '211',
-                  }
+                llp_item = None
+                try:
+                    llp_item = LegislativePeriod.objects.get(
+                        roman_numeral=params['GP'])
+                except LegislativePeriod.DoesNotExist:
+                    self.logger.warning(
+                        red(u"LLP '{}' not found".format(params['GP'])))
 
-        llp = None
-        try:
-            llp = LegislativePeriod.objects.get(roman_numeral=params['GP'])
-        except LegislativePeriod.DoesNotExist:
-            self.logger.warning(
-                red(u"LLP '{}' not found".format(params['GP'])))
-
-        feed_url = self.BASE_URL + 'filter.psp?' + urlencode(params)
-        callback_requests.append(
-            scrapy.Request(feed_url,
-                           callback=self.parse_debatelist,
-                           meta={'llp': llp, 'type': params['NRBRBV']}))
+                feed_url = self.BASE_URL + 'filter.psp?' + urlencode(params)
+                callback_requests.append(
+                    scrapy.Request(feed_url,
+                                   callback=self.parse_debatelist,
+                                   meta={'llp': llp_item, 'type': params['NRBRBV']}))
 
         return callback_requests
 
@@ -188,12 +193,10 @@ class StatementSpider(BaseSpider):
         """
         Apply hour, minutes and possibly secconds to a date.
         """
-        if timeparts is not None and len(timeparts) >=2:
+        if timeparts is not None and len(timeparts) >= 2:
             ts = {'hour': timeparts[0],
                   'minute': timeparts[1],
-                  'second': timeparts[2] \
-                            if len(timeparts) > 2 else 0}
+                  'second': timeparts[2]
+                  if len(timeparts) > 2 else 0}
             date = date.replace(**ts)
         return date
-
-

@@ -13,10 +13,12 @@ _get_state_from_store = () ->
   return {
     terms: AnysearchStore.get_terms()
     subscription_url: AnysearchStore.get_subscription_url()
+    search_ui_url: AnysearchStore.get_search_ui_url()
     subscription_title: AnysearchStore.get_subscription_title()
     categories: AnysearchStore.get_categories()
     values: AnysearchStore.get_values()
     loading: AnysearchStore.is_loading()
+    allow_subscription: AnysearchStore.is_subscription_allowed()
   }
 
 
@@ -60,12 +62,6 @@ Searchbar = React.createClass
   onSearchbarClicked: (event) ->
     if event.target == @refs.searchbar or event.target == @refs.icon or event.target == @refs.placeholder
       @refs.last_term.focus()
-
-  onSubscribeClicked: (event) ->
-    event.preventDefault()
-    console.log AnysearchStore.get_subscription_url()
- 
-
 
   render: ->
     last_key = @state.terms.length - 1
@@ -123,7 +119,10 @@ Searchbar = React.createClass
       {suggest}
       <SubscribeButton
         subscription_url={@state.subscription_url}
+        search_ui_url={@state.search_ui_url}
         subscription_title={@state.subscription_title}
+        subscription_category='search'
+        active={@state.allow_subscription}
       />
     </div>
 

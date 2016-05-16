@@ -1,9 +1,42 @@
 from haystack import indexes
+import datetime
 
-from op_scraper.models import Person, Law
+from op_scraper.models import Person, Law, Debate
+import json
+
+# maintain list of which fields are json-content
+JSON_FIELDS = {
+    'person': ['mandates', 'statements', 'debate_statements'],
+    'law': ['steps', 'opinions', 'documents'],
+}
 
 
-class PersonIndex(indexes.SearchIndex, indexes.Indexable):
+def extract_json_fields(result, type):
+    for field in JSON_FIELDS[type]:
+        try:
+            result[field] = json.loads(result[field])
+        except:
+            # didn't work, maybe not json data after all? anywho, no harm done
+            pass
+    return result
+
+
+class BaseIndex(object):
+    pass
+
+    # Uncomment the following to limit the amount of objects indexed for
+    # debug reasons (it be much faster that way)
+    # def build_queryset(self, start_date=None, end_date=None, using=None):
+    #     "Only index a random 100 Objects"
+    #     return self.get_model().objects.all()[:10]
+
+
+class PersonIndex(BaseIndex, indexes.SearchIndex, indexes.Indexable):
+    FIELDSETS = {
+        'all': ['text', 'category', 'ts', 'parl_id', 'source_link', 'internal_link', 'photo_link', 'photo_copyright', 'birthdate', 'deathdate', 'full_name', 'reversed_name', 'birthplace', 'deathplace', 'occupation', 'party', 'llps', 'llps_numeric', 'mandates', 'statements', 'debate_statements', 'inquiries_sent', 'inquiries_received', 'inquiries_answered', 'comittee_memberships'],
+        'list': ['text', 'category', 'ts', 'parl_id', 'source_link', 'internal_link', 'photo_link', 'photo_copyright', 'birthdate', 'deathdate', 'full_name', 'reversed_name', 'birthplace', 'deathplace', 'occupation', 'party', 'llps', 'llps_numeric'],
+    }
+
     text = indexes.CharField(document=True, use_template=True)
     ts = indexes.DateTimeField(model_attr='ts', faceted=True)
     parl_id = indexes.CharField(model_attr='parl_id')
@@ -24,11 +57,29 @@ class PersonIndex(indexes.SearchIndex, indexes.Indexable):
     occupation = indexes.CharField(
         model_attr='occupation', faceted=True, null=True)
     party = indexes.CharField(model_attr='party', faceted=True, null=True)
-    llps = indexes.CharField(model_attr='llps_facet', faceted=True)
+    llps = indexes.MultiValueField(model_attr='llps_facet', faceted=True)
+    llps_numeric = indexes.MultiValueField(
+        model_attr='llps_facet_numeric', faceted=True)
 
     # Secondary Items
     mandates = indexes.CharField()
     statements = indexes.CharField()
+    debate_statements = indexes.CharField()
+    inquiries_sent = indexes.CharField()
+    inquiries_received = indexes.CharField()
+    inquiries_answered = indexes.CharField()
+    comittee_memberships = indexes.MultiValueField()
+
+    # Static items
+    category = indexes.CharField(faceted=True, null=True)
+
+    def prepare_category(self, obj):
+        try:
+            print u"Indexing {}".format(obj.full_name)
+        except:
+            # some unicode shit here
+            pass
+        return "Person"
 
     def prepare_mandates(self, obj):
         """
@@ -42,34 +93,76 @@ class PersonIndex(indexes.SearchIndex, indexes.Indexable):
         """
         return obj.statements_json
 
+    def prepare_debate_statements(self, obj):
+        """
+        Collects the object's statements's as json
+        """
+        return obj.debate_statements_json
+
+    def prepare_inquiries_sent(self, obj):
+        """
+        Collects the object's inquiries sent as json
+        """
+        return obj.inquiries_sent_json
+
+    def prepare_inquiries_received(self, obj):
+        """
+        Collects the object's inquiries received as json
+        """
+        return obj.inquiries_received_json
+
+    def prepare_inquiries_answered(self, obj):
+        """
+        Collects the object's inquiries answered as json
+        """
+        return obj.inquiries_answered_json
+
+    def prepare_comittee_memberships(self, obj):
+        """
+        Collects the object's inquiries answered as json
+        """
+        return [unicode(cm) for cm in obj.comittee_memberships.all()]
+
     def get_model(self):
         return Person
 
 
-class LawIndex(indexes.SearchIndex, indexes.Indexable):
+class LawIndex(BaseIndex, indexes.SearchIndex, indexes.Indexable):
+
+    FIELDSETS = {
+        'all': ['text', 'parl_id', 'ts', 'internal_link', 'title', 'description', 'category', 'llps', 'llps_numeric', 'steps', 'opinions', 'documents', 'keywords'],
+        'list': ['text', 'parl_id', 'ts', 'internal_link', 'title', 'description', 'category', 'llps', 'llps_numeric', 'steps', 'opinions', 'documents', 'keywords'],
+    }
+
     text = indexes.CharField(document=True, use_template=True)
     parl_id = indexes.CharField(model_attr='parl_id')
-    ts = indexes.DateTimeField(model_attr='ts', faceted=True)
+    source_link = indexes.CharField(model_attr='source_link')
+    ts = indexes.DateTimeField(
+        model_attr='ts', faceted=True, default=datetime.datetime(1970, 1, 1, 0, 0))
 
     internal_link = indexes.CharField(model_attr=u'slug')
     title = indexes.CharField(model_attr='title')
     description = indexes.CharField(model_attr='description')
+    status = indexes.CharField(model_attr='status', null=True)
     category = indexes.CharField(
         model_attr='category__title', faceted=True, null=True)
     llps = indexes.MultiValueField(model_attr='llps_facet', faceted=True)
+    llps_numeric = indexes.MultiValueField(
+        model_attr='llps_facet_numeric', faceted=True)
 
-    # Related, aggregated and Multi-Value Fields
+    # Related, aggregated and Multi - Value Fields
     steps = indexes.CharField()
     opinions = indexes.CharField()
     documents = indexes.CharField()
     keywords = indexes.MultiValueField(
         model_attr='keyword_titles', faceted=True)
 
-    def index_queryset(self, using=None):
-        return self.get_model()\
-            .objects.filter(petition__isnull=True)\
-            .filter(inquiry__isnull=True)\
-            .filter(inquiryresponse__isnull=True)
+    # Use this to limit which (inherited) laws should be scraped
+    # The example shows how to remove inquiries/responses from the list
+    # def index_queryset(self, using=None):
+    #     return self.get_model().objects\
+    #         .filter(inquiry__isnull=False)\
+    #         .filter(inquiryresponse__isnull=False)
 
     def prepare_steps(self, obj):
         """
@@ -91,3 +184,49 @@ class LawIndex(indexes.SearchIndex, indexes.Indexable):
 
     def get_model(self):
         return Law
+
+
+class DebateIndex(BaseIndex, indexes.SearchIndex, indexes.Indexable):
+    FIELDSETS = {
+        'all': ['text', 'parl_id', 'category', 'date', 'title', 'debate_type', 'protocol_url', 'detail_url', 'nr', 'llp', 'statements', 'internal_link'],
+        'list': ['parl_id', 'category', 'date', 'title', 'debate_type', 'protocol_url', 'detail_url', 'nr', 'llp', 'internal_link'],
+    }
+
+    text = indexes.CharField(document=True, use_template=True)
+
+    parl_id = indexes.CharField(model_attr='parl_id')
+    date = indexes.DateTimeField(model_attr='date', faceted=True)
+    title = indexes.CharField(model_attr='title')
+    debate_type = indexes.CharField(model_attr='debate_type', faceted=True)
+    protocol_url = indexes.CharField(model_attr='protocol_url')
+    detail_url = indexes.CharField(model_attr='detail_url')
+    nr = indexes.IntegerField(model_attr='nr', null=True)
+    llps = indexes.MultiValueField(model_attr='llps_facet', faceted=True)
+    llps_numeric = indexes.MultiValueField(
+        model_attr='llps_facet_numeric', faceted=True)
+
+    # soon
+    internal_link = indexes.CharField(model_attr=u'slug')
+
+    # Related, aggregated and Multi - Value Fields
+    statements = indexes.MultiValueField()
+
+    # Static items
+    category = indexes.CharField(faceted=True, null=True)
+
+    def prepare_category(self, obj):
+        try:
+            print u"Indexing {}".format(obj.title)
+        except:
+            # some unicode shit here
+            pass
+        return "Debatte"
+
+    def prepare_statements(self, obj):
+        """
+        Collects the object's statements's as json
+        """
+        return obj.statements_full_text
+
+    def get_model(self):
+        return Debate

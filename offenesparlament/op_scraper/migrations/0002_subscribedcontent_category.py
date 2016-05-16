@@ -7,13 +7,13 @@ from django.db import models, migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('op_scraper', '0003_merge'),
+        ('op_scraper', '0001_initial'),
     ]
 
     operations = [
-        migrations.AlterField(
+        migrations.AddField(
             model_name='subscribedcontent',
-            name='latest_content_hashes',
-            field=models.TextField(null=True, blank=True),
+            name='category',
+            field=models.CharField(default=b'search', max_length=255),
         ),
     ]

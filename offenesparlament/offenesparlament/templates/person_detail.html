@@ -24,8 +24,7 @@
         <img src="{{person.photo_link}}" />
         <figcaption>Foto: {{ person.photo_copyright }}</figcaption>
       </figure>
-    </div>
-    <div class="person_info_text">
+    </div><div class="person_info_text">
       <div class="person_info_section">
         Geboren am {{ person.birthdate }}, {{ person.birthplace }}<br />
         {% if person.deathdate %}
@@ -49,11 +48,35 @@
         </ul>
       </div>
 
+      <div class="person_info_section">
+        <h3>Ausschüsse</h3>
+        <ul>
+        {% for comm in person.comittee_memberships.all %}
+        {% if not comm.date_to %}
+          <li>
+            {{person.full_name}} ist derzeit <b>{{ comm.function }}</b> des
+            {% if comm.comittee.legislative_period %}
+              <a href="{% url 'committee_detail' ggp=comm.comittee.legislative_period.roman_numeral parl_id=comm.comittee.parl_id %}">{{ comm.comittee.name }}</a>
+            {% else %}
+              <a href="{% url 'committee_detail' parl_id=comm.comittee.parl_id %}">{{ comm.comittee.name }}</a>
+            {% endif %}
+          </li>
+        {% endif %}
+        {% endfor %}
+        </ul>
+      </div>
+
+      <div class="person_info_section">
+        <a href="{{person.source_link}}#tab-Ausschuesse" class="icon_link icon_parliament" target="_blank">Alle Ausschusstätigkeiten auf parlament.gv.at</a>
+      </div>
+
       <div class="info_buttons">
-        <a href="{{person.source_link}}" class="button button_source">Parlamentsprofil ansehen</a>
+        <a href="{{person.source_link}}" class="button button_source" target="_blank">Parlamentsprofil ansehen</a>
         <a href="#" class="button button_notifications subscription_button"
-          data-subscription_url="TODO URL"
-          data-subscription_title="TODO TITLE">Benachrichtigung aktivieren</a>
+          data-subscription_url="{{ subscription_url|safe }}"
+          data-search_ui_url="{{ request.path|safe }}"
+          data-subscription_category="person"
+          data-subscription_title="{{ subscription_title }}">Benachrichtigung aktivieren</a>
       </div>
 
     </div>
@@ -61,9 +84,10 @@
 
   {% include 'partials/keywordbox.html' with keywords=keywords tooltip="Zu diesen Schlagworten hatte die/der Parlamentarier_in in den letzten 4 Wochen am meisten Aktivität" %}
 
+  {% if statement_list.all %}
   <div class="section">
     <h2>Redebeiträge</h2>
-    <table>
+    <table class="limited_table">
       <thead>
         <tr>
           <th>Art</th>
@@ -71,7 +95,7 @@
           <th>Verhandlungsgegenstand</th>
       </thead>
       <tbody>
-        {% for st in person.statements.all %}
+        {% for st in statement_list.all %}
         <tr>
           <td>
             <div class="speech_type speech_type_{{st.speech_type}}">
@@ -84,7 +108,9 @@
           <td>
             {{st.step.law.title}}</br>
             <div class="statement_links">
-              <a href="{{ st.protocol_url }}" class="icon_link icon_parliament">Redebeitrag auf parlament.gv.at</a>
+              {% if st.protocol_url %}
+                <a href="https://www.parlament.gv.at{{ st.protocol_url }}" class="icon_link icon_parliament" target="_blank">Redebeitrag auf parlament.gv.at</a>
+              {% endif %}
               <a href="{{ st.step.law.slug }}" class="icon_link icon_law">Zum Gesetz</a>
             </div>
           </td>
@@ -93,11 +119,80 @@
       </tbody>
     </table>
   </div>
+  {% endif %}
 
+  {% if laws %}
   <div class="section">
     <h2>Verhandlungsgegenstände</h2>
-    {% include 'partials/lawlist.html' with laws=laws %}
+    {% include 'partials/lawlist.html' with laws=laws limited_table=True %}
   </div>
+  {% endif %}
+
+  {% if petitions %}
+    <div class="section">
+      <h2>Petitionen</h2>
+      <table class="lawlist limited_table">
+          <thead>
+          <tr>
+              <th>Aktualisierung</th>
+              <th>Betreff</th>
+              <th>Zustimmungserklärungen</th>
+              <th>Status</th>
+          </tr>
+          </thead>
+          <tbody>
+          {% for petition in petitions %}
+              <tr>
+                  <td class="lawlist_date">{{ petition.ts|date }}</td>
+                  <td class="lawlist_title"><a href="{{ petition.slug }}">{{ petition.title }}</a></td>
+                  <td class="lawlist_title">{{ petition.full_signature_count }}</td>
+                  <td class="lawlist_status">
+                    <span class="law_status law_status_{{ petition.simple_status }}">{{ petition.simple_status }}</span>
+                  </td>
+              </tr>
+          {% endfor %}
+          </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if inquiries_sent %}
+    <div class="section">
+      <h2>Parlamentarische Anfragen</h2>
+      <table class="limited_table">
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Titel</th>
+            <th>EmpfängerIn</th>
+        </thead>
+        <tbody>
+          {% for inq in inquiries_sent.all %}
+          <tr>
+            <td>
+                {{inq.first_date}}
+            </td>
+            <td>
+              {% if inq.legislative_period %}
+                <a href="{% url 'gesetz_detail' ggp=inq.llp_roman parl_id=inq.parl_id_urlsafe %}">{{inq.title}}</a>
+              {% else %}
+                <a href="{% url 'gesetz_detail' parl_id=inq.parl_id_urlsafe %}">{{inq.title}}</a>
+              {% endif %}
+            </td>
+            <td>
+              {% if inq.receiver.slug %}
+                <a href="{{ inq.receiver.slug }}">{{ inq.receiver.full_name }}</a>
+              {% else %}
+                {{ inq.receiver.full_name }}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
   {% load jsonify %}
   <script>
     var OFFPARL_DATA_SEARCH_TYPE = 'Personen';

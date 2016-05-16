@@ -25,6 +25,11 @@ $border_light_gray: rgb(221, 227, 232)
 
 @import './anysearch.sass'
 @import './modal.sass'
+@import './search_results.sass'
+@import './_inquiries.sass'
+@import './_homepage.sass'
+@import './_abos.sass'
+@import './_debates.sass'
 
 
 body
@@ -91,6 +96,7 @@ ul
   position: fixed
   top: 0
   height: 50px
+  z-index: 10000
   @media screen and (max-width: $break_responsive_menu)
     position: relative
     height: auto
@@ -163,7 +169,7 @@ ul.columned_linklist
     margin: 13px 0
 
 .top_bar
-  margin: 30px 0
+  margin: 30px 0 0 0
   @media screen and (max-width: $break_small)
     margin: 10px 0
 
@@ -214,14 +220,14 @@ ul.breadcrumbs
     background-color: rgb(243, 120, 62)
 
 .person_info
-  margin-top: 30px
+  margin-top: 60px
   margin-bottom: 40px
   .person_info_photo
     display: inline-block
     width: 150px
     margin-right: 25px
     @media screen and (max-width: $break_small)
-      width: 100%
+      text-align: center
       margin-bottom: 30px
     figure
       padding: 0
@@ -234,6 +240,9 @@ ul.breadcrumbs
   .person_info_text
     display: inline-block
     vertical-align: top
+    max-width: 735px
+    @media screen and (max-width: $break_medium)
+      max-width: 445px
     @media screen and (max-width: $break_small)
       display: block
     .person_info_section
@@ -251,89 +260,6 @@ ul.breadcrumbs
     margin: 10px 20px 10px 0
     @media screen and (max-width: $break_small)
       margin: 10px 0
-
-.homepage_content
-  background-color: $dark_blue
-  margin-top: 0
-
-.homepage_search
-  margin: 150px 0 100px 0
-  .searchbar
-    position: relative
-    width: 100%
-    background-color: white
-    padding-left:  30px
-    i.glyphicon
-      position: absolute
-      margin: 0
-      // padding: 10px
-      pointer-events: none
-    input
-      margin: 0
-      width: 100%
-      line-height: 47px
-      font-size: 16px
-      outline: none
-      border: none
-  .help
-    margin-top: 15px
-    text-align: center
-    a
-      margin: 0 10px
-      color: white
-      &:hover
-        color: $light_blue
-
-
-.projectintro
-  background-color: $red
-  .container
-    width: $break_large + 200px
-    @include linear-gradient(90deg, $red, $red 66.666666666%, white 66.666666666%, white 100%)
-    @media screen and (max-width: $break_large + 200px)
-      width: 100%
-    @media screen and (max-width: $break_medium)
-      margin: 0
-      background: $red
-  .projectintro_item, .projectintro_item_inverse
-    color: white
-    display: inline-block
-    width: 33.333333333%
-    vertical-align: top
-    overflow: hidden
-    @media screen and (max-width: $break_medium)
-      width: 100%
-      display: block
-    .projectintro_item_border_inlay
-      margin: 20px 0
-      overflow: hidden
-      @media screen and (max-width: $break_medium)
-        margin: 0 30px
-      .projectintro_item_content
-        margin: 20px 40px
-        @media screen and (max-width: $break_medium)
-          margin: 30px 0
-    h3
-      background-repeat: no-repeat
-      padding: 0 0 0 37px
-      // margin: 27px 30px 17px 30px
-
-    .projectintro_item_icon_parliament
-      background-image: url('img/icons/parliament_white.svg')
-    .projectintro_item_icon_paperplane
-      background-image: url('img/icons/paperplane_white.svg')
-    .projectintro_item_icon_personsearch
-      background-image: url('img/icons/personsearch_red.svg')
-  .projectintro_item_inverse
-    color: $red
-    @media screen and (max-width: $break_medium)
-      background-color: white
-  .projectintro_item:first-child .projectintro_item_border_inlay
-    border-right: 1px solid white
-    @media screen and (max-width: $break_medium)
-      border-right: none
-      border-bottom: 1px solid rgba(white, 0.5)
-
 
 .footer
   width: 100%
@@ -456,6 +382,14 @@ ul.breadcrumbs
   background-position-y: 8px
   &:hover, &:focus
     background-image: url('img/icons/notification_white.svg')
+  &.disabled
+    opacity: 0.5
+    background-image: url('img/icons/subscribe_gray.svg')
+    cursor: default
+    border-color: gray
+    color: gray
+    &:hover, &:focus
+      background-color: white
 
 .keyword_box
   padding: 40px
@@ -475,7 +409,7 @@ ul.breadcrumbs
     color: rgb(64, 146, 91)
 
 
-.speech_type_Pro, .speech_type_Contra
+.speech_type_Pro, .speech_type_Contra, .speech_type_Wortmeldung
   width: 70px
   height: 20px
   background-repeat: no-repeat
@@ -489,6 +423,9 @@ ul.breadcrumbs
 
 .speech_type_Contra
   background-image: url('img/icons/thumb_down.svg')
+
+.speech_type_Wortmeldung
+  background-image: url('img/icons/info_yellow.svg')
 
 
 table
@@ -525,7 +462,7 @@ table
 
   &.icon_parliament
     background-image: url('img/icons/parliament.svg')
-    background-size: 15px
+    background-size: 14px
 
   &.icon_law
     background-image: url('img/icons/law.svg')
@@ -538,6 +475,11 @@ table
 
   &.icon_pdf
     background-image: url('img/icons/pdf.svg')
+    background-size: 11px
+    background-position: 0px 2px
+
+  &.icon_arrow_down
+    background-image: url('img/icons/arrow_down.svg')
     background-size: 11px
     background-position: 0px 2px
 
@@ -586,9 +528,10 @@ table
 .law_status
   background-repeat: no-repeat
   padding: 0 0 0 25px
+  background-size: contain
 .law_status_offen
   background-image: url('img/icons/status_open.svg')
-.law_status_beschlossen
+.law_status_beschlossen, .law_status_beantwortet
   color: $green
   background-image: url('img/icons/status_completed.svg')
 .law_status_zurückgezogen, .law_status_abgelehnt
@@ -625,6 +568,19 @@ table
     p
       margin: 0 50px 28px 0
 
+.law_vorparlamentarisch_background
+  margin: 70px 0 -70px 0
+  padding: 0 0 70px 0
+  background-color: $light_gray
+  h3.opinions_header
+    margin-top: 70px
+    color: $green
+    background-image: url('img/icons/paper_box_green.svg')
+    background-repeat: no-repeat
+    text-indent: 30px
+  .law_details_box
+    background-color: white
+
 
 .keyword_list
   a
@@ -655,3 +611,25 @@ table.phases_list
 .innerpage_menu
   font-size: 13px
   margin-top: 10px
+
+table.search_results
+  margin-top: 50px
+
+ul.petitions_creators
+  list-style: none
+  padding: 0
+  margin: 0
+  li
+    margin: 0
+    padding: 0
+
+.limited_table
+  .limited_table_hidden_row
+    display: none
+.icon_link.icon_arrow_down.limited_table_show_all_link
+  margin-top: 15px
+  line-height: 20px
+  height: 20px
+  background-size: 20px
+  text-indent: 27px
+  background-position: 0

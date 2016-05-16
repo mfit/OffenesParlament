@@ -26,7 +26,7 @@
   <h2>{{ law.category.title }}</h2>
 
   <div class="column">
-    <p>{{ law.description }}</p>
+    <p>{{ law.description|safe }}</p>
     {% if law.references %}
       <p>Bezieht sich auf: {{ law.references.short_title }}</p>
     {% endif %}
@@ -43,16 +43,29 @@
   --><div class="column">
     <h3>Status</h3>
     <p>
-      {% autoescape off %}
-      <span class="law_status law_status_{{ law.simple_status }}">{{ law.status }}</span></br>
-      {% endautoescape %}
+      <span class="law_status law_status_{{ law.simple_status }}">{{ law.status|striptags }}</span></br>
     </p>
   </div>
 </div>
 
+{% if law.press_releases.all %}
+  <div class="section">
+    <h2>Meldungen der Parlamentskorrespondenz</h2>
+    <ul>
+      {% for pr in law.press_releases.all %}
+        <li>{{ pr.title }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
 <div class="info_buttons law_info_buttons">
-  <a href="{{ law.source_link }}" class="button button_source">Zur Parlamentsseite</a>
-  <a href="#" class="button button_notifications">Benachrichtigung aktivieren</a>
+  <a href="{{ law.source_link }}" class="button button_source" target="_blank">Zur Parlamentsseite</a>
+        <a href="#" class="button button_notifications subscription_button"
+          data-subscription_url="{{ subscription_url|safe }}"
+          data-search_ui_url="{{ request.path|safe }}"
+          data-subscription_category="law"
+          data-subscription_title="{{ subscription_title }}">Benachrichtigung aktivieren</a>
 </div>
 
 
@@ -93,6 +106,10 @@
 </div>
 
 {% if law.references %}
+</div>
+</div>
+<div class="law_vorparlamentarisch_background">
+<div class="container">
   <div class="section">
     <h2 id="vorparlamentarisch">Vorparlamentarisches Verfahren</h2>
 
@@ -117,7 +134,9 @@
       </div>
     </div>
 
-    <table>
+{% if law.references.opinions.all %}
+<h3 class="opinions_header">Es gab im vorparlamentarischen Prozess insgesamt {{ law.references.opinions.all|length }} Stellungnahme{{ law.references.opinions.all|pluralize:"n" }}.</h3>
+    <table class="limited_table">
       <thead>
         <tr>
           <th class="date">Datum</th>
@@ -127,18 +146,22 @@
         </tr>
       </thead>
       <tbody>
-        {% for opinion in law.references.opinions.all %}
+        {% for opinion in law.references.opinions_and_documents %}
         <tr>
           <td class="date">{{ opinion.date }}</td>
           <td class="title">{{ opinion.parl_id }}</td>
           <td class="by">{{ opinion.entity }}</td>
           <td class="links">
+            {% for document in opinion.documents.all %}
+            <a target="_blank" href="http://www.parlament.gv.at{% if document.html_link %}{{ document.html_link }}{% else %}{{document.pdf_link}}{% endif %}" class="icon_link {% if document.html_link %}icon_html{% else %} icon_pdf{% endif %}">&nbsp;</a>
+            {% endfor %}
             <a href="{{ opinion.source_link }}" class="icon_link icon_parliament">Parlamentsseite</a>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+{% endif %}
   </div>
 {% endif %}
 

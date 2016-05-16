@@ -25,6 +25,7 @@ logging.basicConfig(
 
 class BaseConfig(Configuration):
     STATICFILES_DIRS = (os.path.join(PROJECT_PATH, 'static'), )
+    DEBUG_SUBSCRIPTIONS = True
 
     SECRET_KEY = 'tk5l_92mqo3406we8^s*x%%=*7*m*!ce0^o^s7_t9lrg@f46_n'
     DEBUG = False
@@ -43,12 +44,12 @@ class BaseConfig(Configuration):
         'haystack',
         'op_scraper',
         'annoying',
-        'reversion',
         'django_extensions',
         'django_bootstrap_breadcrumbs',
         'import_export',
         'jsonify',
         'djcelery',
+        'django_inlinecss',
     )
 
     MIDDLEWARE_CLASSES = (
@@ -71,6 +72,8 @@ class BaseConfig(Configuration):
             'ENGINE': 'offenesparlament.search_backend.FuzzyElasticsearchSearchEngine',
             'URL': 'http://localhost:9200/',
             'INDEX_NAME': 'haystack',
+            'TIMEOUT': 120,
+            'BATCH_SIZE': 50,
         },
     }
 
@@ -160,7 +163,10 @@ class Dev(BaseConfig):
     BROKER_URL = 'amqp://offenesparlament:op_dev_qwerty@offenesparlament.vm:5672//'
     #CELERY_RESULT_BACKEND = 'amqp'
 
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+    EMAIL_FILE_PATH = '/vagrant/ignore/log/mails' # change this to a proper location
+
 
     # Workaround for the ReactorNotRestartable issue described here:
     # http://stackoverflow.com/questions/22116493/run-a-scrapy-spider-in-a-celery-task
@@ -174,7 +180,7 @@ class Dev(BaseConfig):
                 'class': 'logging.StreamHandler',
             },
             'null': {
-                'level': 'DEBUG',
+                'level': 'INFO',
                 'class': 'django.utils.log.NullHandler',
             },
         },
@@ -186,7 +192,7 @@ class Dev(BaseConfig):
             'django.db.backends': {
                 'handlers': ['null'],  # Quiet by default!
                 'propagate': False,
-                'level': 'DEBUG',
+                'level': 'INFO',
             },
         },
     }
@@ -226,6 +232,25 @@ class ProductionBase(BaseConfig):
     SECRET_KEY = None
     ALLOWED_HOSTS = ['*']
     BROKER_URL = 'amqp://production_user_rabbitmq:supersecretpw@rabbitmq_vhost:5672//'
+    DEBUG_SUBSCRIPTIONS = False
+
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'loggers': {
+            'django': {
+                'handlers': ['console'],
+                'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+            },
+        },
+    }
+
+    INSTALLED_APPS = BaseConfig.INSTALLED_APPS + ('raven.contrib.django.raven_compat',)
 
 
 class StagingBase(ProductionBase):

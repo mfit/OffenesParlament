@@ -31,6 +31,8 @@ from op_scraper.models import Law
 
 
 class ComitteesSpider(BaseSpider):
+    ALLOWED_LLPS = range(20, 26)
+
     BASE_URL = "{}/{}".format(BASE_HOST, "PAKT/AUS/filter.psp")
 
     URLOPTIONS = {
@@ -85,16 +87,16 @@ class ComitteesSpider(BaseSpider):
                 urls = urls + [entry['link'] for entry in rss['entries']]
 
         # AKT = aktiv, AUF = aufgeloest
-        for aktauf in ['AKT', 'AUF']:
-            options['NRBR'] = 'BR'
-            options['R_AKTAUF'] = aktauf
-            url_options = urlencode(options)
-            url_br = "{}?{}".format(self.BASE_URL, url_options)
-            rss = feedparser.parse(url_br)
+        #for aktauf in ['AKT', 'AUF']:
+        #    options['NRBR'] = 'BR'
+        #    options['R_AKTAUF'] = aktauf
+        #    url_options = urlencode(options)
+        #    url_br = "{}?{}".format(self.BASE_URL, url_options)
+        #    rss = feedparser.parse(url_br)
 
-            print "BR {}: {} Comittees".format(
-                aktauf, len(rss['entries']))
-            urls = urls + [entry['link'] for entry in rss['entries']]
+        #    print "BR {}: {} Comittees".format(
+        #        aktauf, len(rss['entries']))
+        #    urls = urls + [entry['link'] for entry in rss['entries']]
 
         return urls
 
@@ -102,16 +104,15 @@ class ComitteesSpider(BaseSpider):
         # Parse
         parl_id = COMITTEE.url_to_parlid(response.url)[1]
         ts = GENERIC.TIMESTAMP.xt(response)
-        llp = COMITTEE.LLP.xt(response)
+        LLP = COMITTEE.LLP.xt(response)
         name = COMITTEE.NAME.xt(response)
 
-        if llp is not None:
+        if LLP is not None:
             nrbr = 'Nationalrat'
             legislative_period = LegislativePeriod.objects.get(
-                roman_numeral=llp)
-            # NR comittees are "active" if they are in the current LLP
-            active = (
-                legislative_period == LegislativePeriod.objects.get_current())
+                roman_numeral=LLP)
+            # NR comittees are always "active", only BR comittees are either active or inactive
+            active = True
         else:
             nrbr = 'Bundesrat'
             legislative_period = None
@@ -130,7 +131,7 @@ class ComitteesSpider(BaseSpider):
         else:
             parent_comitee = None
 
-        if not self.has_changes(parl_id, legislative_period, nrbr, response.url, ts):
+        if not self.IGNORE_TIMESTAMP and not self.has_changes(parl_id, legislative_period, nrbr, response.url, ts):
             self.logger.info(
                 green(u"Skipping Comittee, no changes: {}".format(
                     name)))
@@ -140,7 +141,7 @@ class ComitteesSpider(BaseSpider):
         logtext = u"Scraping {} with id {}, LLP {} @ {}".format(
             red(name),
             magenta(u"[{}]".format(parl_id)),
-            green(str(llp)),
+            green(unicode(LLP)),
             blue(response.url)
         )
         log.msg(logtext, level=log.INFO)
@@ -152,7 +153,6 @@ class ComitteesSpider(BaseSpider):
             'name': name,
             'source_link': response.url,
             'parent_comittee': parent_comitee,
-            'active': active,
             'ts': ts
         }
 
@@ -161,6 +161,7 @@ class ComitteesSpider(BaseSpider):
                 parl_id=parl_id,
                 legislative_period=legislative_period,
                 nrbr=nrbr,
+                active=active,
                 defaults=comittee_data
             )
         except:
