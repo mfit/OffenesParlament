@@ -4,11 +4,16 @@ import feedparser
 import roman
 from urllib import urlencode
 
-from ansicolor import green, red
+from ansicolor import green, red, yellow
 
 from parlament.settings import BASE_HOST
 from parlament.spiders import BaseSpider
-from parlament.resources.extractors.statement import *
+from parlament.resources.extractors.statement import (
+    RSS_DEBATES,
+    RSS_DEBATES_SIMPLE,
+    HTML_DEBATE_DETAIL,
+    DOCSECTIONS
+)
 
 from op_scraper.models import DebateStatement, Debate
 from op_scraper.models import Person, LegislativePeriod
@@ -16,6 +21,43 @@ from op_scraper.models import Person, LegislativePeriod
 import datetime
 
 import json
+
+
+def debatelist_makeurl_rss(llp, debatetype):
+    baseurl = "{}/{}".format(BASE_HOST, "PAKT/STPROT/filter.psp")
+    params = {
+        'view': 'RSS',
+        'NRBRBV': debatetype,
+        'GP': llp,
+        'R_PLSO': 'PL',
+        'NUR_VORL': 'N',
+        'FBEZ': 'FP_011',
+        'listeId': '212',
+    }
+    return baseurl + '?' + urlencode(params)
+
+
+# def debatelist_makeurl_html(llp, debatetype):
+#     baseurl = "{}/{}".format(BASE_HOST, "Filter/filter.psp")
+#     params = dict(
+#         SUCH='',
+#         pageNumber='',
+#         R_PLSO='PL',
+#         GP=llp,
+#         INTRANET='N',
+#         STEP='1210',
+#         feldRnr='3',
+#         STPROT='ALLE',
+#         scDesc='DESC',
+#         FBEZ='FP_011',
+#         view='',
+#         NRBRBV=debatetype,
+#         BEZ='FP_211',
+#         LISTE='',
+#         NUR_VORL='N',
+#         listeId='212'
+#     )
+#     return baseurl + '?' + urlencode(params)
 
 
 class StatementSpider(BaseSpider):
@@ -29,6 +71,8 @@ class StatementSpider(BaseSpider):
     First step is to get urls of debate-transcripts ("stenographische
     protokolle"), for this, the RSS-Feed at
     `http://www.parlament.gv.at/PAKT/STPROT/` is used.
+    We have to do one extra step to get the actual protocol url from an
+    intermediate debate-detail page.
 
     Parameters are `type` (NR, BR) and `llp` (number) for type of
     debate and llp respectively::
@@ -43,10 +87,9 @@ class StatementSpider(BaseSpider):
 
     """
 
-    BASE_URL = "{}/{}".format(BASE_HOST, "PAKT/STPROT/")
 
+    BASE_URL = "{}/{}".format(BASE_HOST, "PAKT/STPROT")
     ALLOWED_LLPS = range(20, 26)
-
     DEBATETYPES = ['NR', 'BR']
 
     name = "statement"
@@ -64,75 +107,104 @@ class StatementSpider(BaseSpider):
         else:
             self.LLP = [roman.toRoman(llp) for llp in self.ALLOWED_LLPS]
 
+        # Sitzungsnummer (further filtering down to just one 'sitzung')
         self.SNR = kw['snr'] if 'snr' in kw else None
 
+        # The start url is actually not parsed at all, but we need some
+        # url to get the scraping started.
         self.start_urls = [self.BASE_URL]
 
     def parse(self, response):
         """
-        Starting point from which to parse or statically provide
-        debate-list urls (rss feeds)
+        Starting point - produces urls (requests) of debate items lists (urls
+        of RSS feeds).
+
+        It builds the list of requests/callbacks (alongsite metadata that
+        is known beforenhand) from the set of LLPs and debate types.
+
+        The feeds will be parsed in the next step, parse_debatelist.
         """
 
         callback_requests = []
         for llp in self.LLP:
             for nrbr in self.DEBATETYPES:
-                params = {'view': 'RSS',
-                          'jsMode': 'RSS',
-                          'xdocumentUri': '/PAKT/STPROT/index.shtml',
-                          'NRBRBV': nrbr,
-                          'NUR_VORL': 'N',
-                          'R_PLSO': 'PL',
-                          'GP': llp,
-                          'FBEZ': 'FP_011',
-                          'listeId': '211',
-                          }
+                # Debatelist Url
+                feed_url = debatelist_makeurl_rss(llp, nrbr)
 
+                # Additional metadata (does a lookup on the LLP)
                 llp_item = None
                 try:
-                    llp_item = LegislativePeriod.objects.get(
-                        roman_numeral=params['GP'])
+                    llp_item = LegislativePeriod.objects.get(roman_numeral=llp)
                 except LegislativePeriod.DoesNotExist:
-                    self.logger.warning(
-                        red(u"LLP '{}' not found".format(params['GP'])))
+                    self.logger.warning(red(u"LLP '{}' not found".format(llp)))
 
-                feed_url = self.BASE_URL + 'filter.psp?' + urlencode(params)
+                # Add a request and callback
                 callback_requests.append(
                     scrapy.Request(feed_url,
                                    callback=self.parse_debatelist,
-                                   meta={'llp': llp_item, 'type': params['NRBRBV']}))
+                                   meta={'llp': llp_item, 'type': nrbr}))
 
         return callback_requests
 
     def parse_debatelist(self, response):
         """
-        Parse list of debates
+        Parse feed of debate items.
+
+        Each response is an RSS feed with debate items.
+        From each item (=debate), debate metadata and a detail url (not yet
+        the debate protocol url) is extracted.
+
+        The detail url is parsed in the next step, parse_debate_detail.
         """
 
         llp = response.meta['llp'] if 'llp' in response.meta else None
-        debate_type = response.meta['type'] \
-            if 'type' in response.meta else ''
-        debates = RSS_DEBATES.xt(response)
-        self.logger.info(green(u"{} debates from {}".format(len(debates),
-                                                            response.url)))
+        debate_type = response.meta['type'] if 'type' in response.meta else ''
 
-        # If SNR is set, use only a subset of debates for further parsing
-        fetch_debates = filter(lambda r: r['protocol_url'] != "" and
+        # debates = RSS_DEBATES.xt(response)
+        debates = RSS_DEBATES_SIMPLE.xt(response)
+
+        # If SNR is set filter debate list to contain the debate number.
+        fetch_debates = filter(lambda r: r['detail_url'] != "" and
                                (not self.SNR or self.SNR in r['title']),
                                debates)
+
+        self.logger.info(green(u"{} of {} debates from {}".format(
+            len(fetch_debates), len(debates), response.url)))
 
         for debate in fetch_debates:
             debate['llp'] = llp
             debate['debate_type'] = debate_type
-            debate['protocol_url'] = BASE_HOST + debate['protocol_url']
-            debate_item = self.store_debate(debate)
-            yield scrapy.Request(debate['protocol_url'],
-                                 callback=self.parse_debate,
-                                 meta={'debate': debate_item})
+            yield scrapy.Request(debate['detail_url'],
+                                 callback=self.parse_debate_detail,
+                                 meta={'debate': debate})
+
+
+    def parse_debate_detail(self, response):
+        """
+        Process a detail page that contains the url to the debate protocol.
+
+        Extract the protocol url, add it to metadata to return the request
+        with the callback for the actual content parsing of the debate.
+
+        The debate metadata is saved, and the next step is to parse the
+        actual debate content, parse_debate
+        """
+
+        # Complete debate metadata and store (insert/update) it
+        debate = response.meta['debate']
+        debate['protocol_url'] = BASE_HOST + HTML_DEBATE_DETAIL.xt(response)
+        debate_item = self.store_debate(debate)
+
+        yield scrapy.Request(
+            debate['protocol_url'],
+            callback=self.parse_debate,
+            meta={'debate': debate_item})
 
     def parse_debate(self, response):
         """
-        Debate-transcript ("Stenografisches Protokoll") parser
+        Debate-transcript ("Stenografisches Protokoll") parser.
+
+        Parses the actual debate content.
         """
         i = 0
         for i, sect in enumerate(DOCSECTIONS.xt(response)):
@@ -151,8 +223,13 @@ class StatementSpider(BaseSpider):
             # Select best timestamps for start and end and make datetime
             start_ts = sect['time_start'] or sect['ref_timestamp']
             end_ts = sect['time_end'] or sect['ref_timestamp']
-            sect['date'] = self._apply_ts(sect['debate'].date, start_ts)
-            sect['date_end'] = self._apply_ts(sect['debate'].date, end_ts)
+            try:
+                debate_date = sect['debate'].date()
+            except:
+                # Use some valid date, but recognizable to come from a parse error
+                debate_date = datetime.datetime(2057, 1, 1)
+            sect['date'] = self._apply_ts(debate_date, start_ts)
+            sect['date_end'] = self._apply_ts(debate_date, end_ts)
 
             self.store_statement(sect, i)
 
@@ -177,7 +254,8 @@ class StatementSpider(BaseSpider):
         """
         Save (update or insert) debate_statement to ORM
         """
-        data['index'] = index
+        data['index'] = int(index)
+        self.logger.info(data)
         try:
             debate_statement = DebateStatement.objects.get(
                 debate=data['debate'], doc_section=data['doc_section'])
@@ -192,6 +270,10 @@ class StatementSpider(BaseSpider):
     def _apply_ts(self, date, timeparts):
         """
         Apply hour, minutes and possibly secconds to a date.
+
+        In the docsections, we scrape only minutes and seconds - but we
+        have the date from the debate metadata.
+        This helper method combines the two to get a full timestamp.
         """
         if timeparts is not None and len(timeparts) >= 2:
             ts = {'hour': timeparts[0],
