@@ -48,3 +48,4 @@ tabulate
 html-sanitizer
 lxml
 phonenumbers
+dateparser

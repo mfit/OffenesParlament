@@ -9,6 +9,8 @@ from django.utils.dateparse import parse_datetime
 from parlament.resources.extractors import SingleExtractor
 from parlament.resources.extractors import MultiExtractor
 
+import dateparser
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ regexTimestamp = re.compile('(\d{1,2})\.(\d{2})\.?(\d{2})?')
 regexFindPage = re.compile('Seite_([0-9]*)\.html')
 regexSpeakerId = re.compile('WWER/(PAD_[0-9]*)/')
 regexDebateNr = re.compile('/[N,B]RSITZ_([0-9]*)/')
+regexDebateNrSimple = re.compile('(\d+)')
 regexSpeakerPart = re.compile('.*?\s?'  # name, title etc. up until link
     '\[\[link\d+\]\]'  # placeholder for link
     '\s?(?:\(.*?\))?'  # optional political party in brackets
@@ -120,6 +123,62 @@ class Paragraph():
         return res
 
 
+class RSS_DEBATES_SIMPLE(MultiExtractor):
+    """
+    This rss item has fewer data and does not provide the protocol url directly.
+    """
+    XPATH = '//item'
+
+    class RSS_DEBATES_ITEM(SingleExtractor):
+        """
+        An rss-item of the feed, representing metadata of a single debate.
+        """
+        class TITLE(SingleExtractor):
+            XPATH = './/title/text()'
+
+        class DETAIL_LINK(SingleExtractor):
+            XPATH = './/link/text()'
+
+        class DATE(SingleExtractor):
+            XPATH = './/pubDate/text()'
+
+        class DESCRIPTION(SingleExtractor):
+            XPATH = './/description/text()'
+
+        @classmethod
+        def xt(cls, response):
+            dtime = dateparser.parse(cls.DATE.xt(response))
+            if dtime is None:
+                logger.warn(u"Could not parse date '{}'".format(cls.DATE.xt(response)))
+            title = cls.TITLE.xt(response)
+
+            # Debate-nr from protocol url
+            dnr = None
+            try:
+                dnr = int(regexDebateNrSimple.findall(title)[0])
+            except (IndexError, ValueError):
+                logger.warn(
+                    u"Could not parse debate_nr from '{}'".format(title))
+
+            debate_metadata = {
+                'date': dtime,
+                'debate_type': None,
+                'title': title,
+                'detail_url': cls.DETAIL_LINK.xt(response),
+                'nr': dnr,
+            }
+
+            # logger.debug(debate_metadata)
+            return debate_metadata
+
+    @classmethod
+    def xt(cls, response):
+        return [
+            cls.RSS_DEBATES_ITEM.xt(item)
+            for item in response.xpath(cls.XPATH)
+        ]
+
+
 class RSS_DEBATES(MultiExtractor):
 
     """
@@ -127,7 +186,7 @@ class RSS_DEBATES(MultiExtractor):
     """
     XPATH = '//item'
 
-    class RSSITEM(SingleExtractor):
+    class RSS_DEBATES_ITEM(SingleExtractor):
 
         """
         An rss-item of the feed, representing metadata of a single debate.
@@ -149,7 +208,7 @@ class RSS_DEBATES(MultiExtractor):
 
         @classmethod
         def xt(cls, response):
-
+            # logger.debug(response.extract())
             # Debatedate
             dtime = None
             try:
@@ -163,6 +222,11 @@ class RSS_DEBATES(MultiExtractor):
             descr = Selector(text=cls.DESCRIPTION.xt(response))
             protocol_url = cls.PROTOCOL_URL.xt(descr)
 
+            title = cls.TITLE.xt(response)
+
+            if protocol_url.strip() == '':
+                logger.warn(u"Empty protocol url for title={}".format(title))
+
             # Debate-nr from protocol url
             dnr = None
             try:
@@ -171,19 +235,34 @@ class RSS_DEBATES(MultiExtractor):
                 logger.warn(
                     u"Could not parse debate_nr from '{}'".format(protocol_url))
 
-            return {
+            debate_metadata = {
                 'date': dtime,
                 'debate_type': None,  # is part of the url, actually
-                'title': cls.TITLE.xt(response),
+                'title': title,
                 'protocol_url': protocol_url,
                 'nr': dnr,
                 'detail_url': cls.DETAIL_LINK.xt(response)
             }
 
+            # logger.debug(debate_metadata)
+            return debate_metadata
+
     @classmethod
     def xt(cls, response):
-        return [cls.RSSITEM.xt(item) for item in response.xpath(cls.XPATH)]
+        return [
+                cls.RSS_DEBATES_ITEM.xt(item)
+                for item in response.xpath(cls.XPATH)
+                ]
 
+class HTML_DEBATE_DETAIL(SingleExtractor):
+    """
+    A detail overview debate page that we need parse for the actual
+    debate protocol url
+    """
+    XPATH = './/ul[@class=\'fliesstext\']/li[1]/a[contains(@href, \'html\')]/@href'
+    # @classmethod
+    # def xt(cls, response):
+    #     return cls.xt(response)
 
 class DOCSECTIONS(MultiExtractor):
 
