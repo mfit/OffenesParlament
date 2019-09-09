@@ -43,12 +43,11 @@ class BaseConfig(Configuration):
 
     SECRET_KEY = 'tk5l_92mqo3406we8^s*x%%=*7*m*!ce0^o^s7_t9lrg@f46_n'
     DEBUG = False
-    TEMPLATE_DEBUG = False
     ALLOWED_HOSTS = []
 
     INSTALLED_APPS = (
-        'grappelli.dashboard',
-        'grappelli',
+        # 'grappelli.dashboard',
+        # 'grappelli',
         'django.contrib.admin',
         'django.contrib.auth',
         'django.contrib.contenttypes',
@@ -116,6 +115,7 @@ class BaseConfig(Configuration):
     TEMPLATES = [
         {
             'BACKEND': 'django.template.backends.django.DjangoTemplates',
+            'DEBUG': False,
             'DIRS': [os.path.join(PROJECT_PATH, 'templates')],
             'APP_DIRS': True,
             'OPTIONS': {
@@ -148,9 +148,9 @@ class BaseConfig(Configuration):
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': 'op',
-            'USER': 'op',
-            'PASSWORD': 'secret',
-            'HOST': '127.0.0.1',
+            'USER': 'postgres',
+            'PASSWORD': 'example',
+            'HOST': '0.0.0.0',
             'PORT': '5432',
             'CHARSET': 'UTF8',
             'TEST_CHARSET': 'UTF8',
@@ -207,12 +207,11 @@ class BaseConfig(Configuration):
 
 class Dev(BaseConfig):
     DEBUG = True
-    TEMPLATE_DEBUG = True
     ADMINS = [('Test', 'test@example.com',)]
     BROKER_URL = 'amqp://offenesparlament:op_dev_qwerty@offenesparlament.vm:5672//'
     #CELERY_RESULT_BACKEND = 'amqp'
 
-    ALLOWED_HOSTS = ['offenesparlament.vm','testserver']
+    ALLOWED_HOSTS = ['offenesparlament.vm', 'testserver', 'localhost']
 
     # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
@@ -234,7 +233,7 @@ class Dev(BaseConfig):
             },
             'null': {
                 'level': 'INFO',
-                'class': 'django.utils.log.NullHandler',
+                'class': 'logging.NullHandler',
             },
         },
         'loggers': {
@@ -259,16 +258,16 @@ class Dev(BaseConfig):
         },
     }
 
-    INSTALLED_APPS = BaseConfig.INSTALLED_APPS + (
-        'debug_toolbar',
-        'template_timings_panel'
-    )
+    # INSTALLED_APPS = BaseConfig.INSTALLED_APPS + (
+    #     'debug_toolbar',
+    #     'template_timings_panel'
+    # )
 
     # configure debug toolbar explicitly
-    DEBUG_TOOLBAR_PATCH_SETTINGS = False
+    # DEBUG_TOOLBAR_PATCH_SETTINGS = False
 
-    MIDDLEWARE_CLASSES = BaseConfig.MIDDLEWARE_CLASSES + \
-        ('debug_toolbar.middleware.DebugToolbarMiddleware', )
+    # MIDDLEWARE_CLASSES = BaseConfig.MIDDLEWARE_CLASSES + \
+    #     ('debug_toolbar.middleware.DebugToolbarMiddleware', )
 
     INTERNAL_IPS = ('127.0.0.1', '10.0.2.2', '192.168.47.1')
 
@@ -302,7 +301,7 @@ class UnitTest(Dev):
             },
             'null': {
                 'level': 'INFO',
-                'class': 'django.utils.log.NullHandler',
+                'class': 'logging.NullHandler',
             },
         },
         'loggers': {

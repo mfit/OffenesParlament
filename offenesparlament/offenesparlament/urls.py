@@ -125,7 +125,7 @@ urlpatterns = patterns(
         name='commentedcontent_view'),
 
 
-    url(r'^grappelli/', include('grappelli.urls')),  # grappelli URLS
+    # url(r'^grappelli/', include('grappelli.urls')),  # grappelli URLS
     url(r'^admin/scrape/(?P<spider_name>.{1,30})',
         admin_views.trigger_scrape, name='scrape_llp'),
     url(r'^admin/elastic/update',
@@ -133,11 +133,11 @@ urlpatterns = patterns(
     url(r'^admin/', include(admin.site.urls)),
 )
 
-if settings.DEBUG:
-    import debug_toolbar
-    urlpatterns += patterns('',
-                            (r'^media/(?P<path>.*)$', 'django.views.static.serve', {
-                             'document_root': settings.MEDIA_ROOT}))
-    urlpatterns += patterns('',
-                            url(r'^__debug__/', include(debug_toolbar.urls)),
-                            )
+# if settings.DEBUG:
+#     import debug_toolbar
+#     urlpatterns += patterns('',
+#                             (r'^media/(?P<path>.*)$', 'django.views.static.serve', {
+#                              'document_root': settings.MEDIA_ROOT}))
+#     urlpatterns += patterns('',
+#                             url(r'^__debug__/', include(debug_toolbar.urls)),
+#                             )

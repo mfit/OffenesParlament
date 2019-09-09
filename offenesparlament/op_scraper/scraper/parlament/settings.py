@@ -18,7 +18,7 @@ NEWSPIDER_MODULE = 'parlament.spiders'
 BASE_HOST = "https://www.parlament.gv.at"
 
 LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'WARNING')
-LOG_ENABLED = False
+LOG_ENABLED = True
 DOWNLOADER_STATS = False
 STATS_ENABLED = False
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
