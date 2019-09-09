@@ -50,6 +50,13 @@ Create the model tables:
 
         env/bin/python offenesparlament/manage.py migrate
 
+### Notes
+
+django and scrapy are pinned to lower versions due to depreactions:
+
+  - django (<1.9) due to use of remove_tags
+  - scrapy (<1.7) due to use of scrapy.log
+
 
 ### Scraping
 
