@@ -43,7 +43,6 @@ class BaseConfig(Configuration):
 
     SECRET_KEY = 'tk5l_92mqo3406we8^s*x%%=*7*m*!ce0^o^s7_t9lrg@f46_n'
     DEBUG = False
-    TEMPLATE_DEBUG = False
     ALLOWED_HOSTS = []
 
     INSTALLED_APPS = (
@@ -116,6 +115,7 @@ class BaseConfig(Configuration):
     TEMPLATES = [
         {
             'BACKEND': 'django.template.backends.django.DjangoTemplates',
+            'DEBUG': False,
             'DIRS': [os.path.join(PROJECT_PATH, 'templates')],
             'APP_DIRS': True,
             'OPTIONS': {
@@ -207,7 +207,6 @@ class BaseConfig(Configuration):
 
 class Dev(BaseConfig):
     DEBUG = True
-    TEMPLATE_DEBUG = True
     ADMINS = [('Test', 'test@example.com',)]
     BROKER_URL = 'amqp://offenesparlament:op_dev_qwerty@offenesparlament.vm:5672//'
     #CELERY_RESULT_BACKEND = 'amqp'
