@@ -24,7 +24,7 @@ specified one.
 
 Run it from the virtualenv
 
-        env/bin/python offenesparlament manage.py
+        env/bin/python offenesparlament/manage.py
 
 
 ### Database via docker
@@ -41,11 +41,21 @@ password = example), or open a psql shell in the container:
         \c database_name
         \dt
 
+        # Create database a by the name `op`:
+        create database op;
+
 Create a database by the name of 'op'.
 
 Create the model tables:
 
-        env/bin/python offenesparlament manage.py migrate
+        env/bin/python offenesparlament/manage.py migrate
+
+### Notes
+
+django and scrapy are pinned to lower versions due to depreactions:
+
+  - django (<1.9) due to use of remove_tags
+  - scrapy (<1.7) due to use of scrapy.log
 
 
 ### Scraping
@@ -59,3 +69,5 @@ Ready to scrape:
         env/bin/python offenesparlament/manage.py scrape crawl llp
 
 
+        # Example, crawl statements of 23rd legislative perdiod
+        env/bin/python offenesparlament/manage.py scrape crawl statement -a llp=23

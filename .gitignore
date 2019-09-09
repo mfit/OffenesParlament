@@ -19,3 +19,5 @@ db.sqlite2
 offenesparlament/offenesparlament/media/
 *.swp
 diffs
+env
+.vscode
