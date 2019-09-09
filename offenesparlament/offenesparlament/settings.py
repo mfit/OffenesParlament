@@ -207,7 +207,6 @@ class BaseConfig(Configuration):
 
 class Dev(BaseConfig):
     DEBUG = True
-    TEMPLATE_DEBUG = True
     ADMINS = [('Test', 'test@example.com',)]
     BROKER_URL = 'amqp://offenesparlament:op_dev_qwerty@offenesparlament.vm:5672//'
     #CELERY_RESULT_BACKEND = 'amqp'
