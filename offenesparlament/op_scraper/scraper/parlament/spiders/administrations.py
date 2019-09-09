@@ -26,7 +26,7 @@ from op_scraper.models import LegislativePeriod
 
 
 class AdministrationsSpider(PersonsSpider):
-    BASE_URL = "{}/{}".format(BASE_HOST, "WWER/BREG/REG/filter.psp")
+    BASE_URL = "{}/{}".format(BASE_HOST, "WWER/BREG/REG/index.shtml")
 
     URLOPTIONS_ADMIN = {
         'jsMode': '',
