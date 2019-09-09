@@ -234,7 +234,7 @@ class Dev(BaseConfig):
             },
             'null': {
                 'level': 'INFO',
-                'class': 'django.utils.log.NullHandler',
+                'class': 'logging.NullHandler',
             },
         },
         'loggers': {
@@ -302,7 +302,7 @@ class UnitTest(Dev):
             },
             'null': {
                 'level': 'INFO',
-                'class': 'django.utils.log.NullHandler',
+                'class': 'logging.NullHandler',
             },
         },
         'loggers': {
