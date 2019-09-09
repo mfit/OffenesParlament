@@ -128,6 +128,7 @@ class PersonsSpider(BaseSpider):
 
     def parse(self, response):
         all_link_followed = False
+        new_url = ''
         try:
             all_links = response.xpath('''//a[starts-with(text(),'Alle anzeigen')]/@href''')
             if len(all_links)>0:
@@ -297,6 +298,9 @@ class PersonsSpider(BaseSpider):
         return state_item
 
     def has_changes(self, parl_id, source_link, ts):
+        if ts is None:
+            return True
+
         if not Person.objects.filter(
             parl_id=parl_id,
             source_link=source_link
@@ -319,8 +323,13 @@ class PersonsSpider(BaseSpider):
             person = Person.objects.get(parl_id=[x for x in response.url.split('/') if 'PAD' in x][0]).__dict__
         full_name = PERSON.DETAIL.FULL_NAME.xt(response)
 
-        ts = GENERIC.TIMESTAMP.xt(response)
-        if not self.IGNORE_TIMESTAMP and not self.has_changes(person['parl_id'], person['source_link'], ts):
+        try:
+            ts = GENERIC.TIMESTAMP.xt(response)
+            # TODO: test if GENERIC.TIMESTAMP_STAND is wha is needed
+        except IndexError:
+            ts = None
+
+        if not self.IGNORE_TIMESTAMP and ts is not None and not self.has_changes(person['parl_id'], person['source_link'], ts):
             logger.debug(
                 green(u"Skipping Person Detail, no changes: {}".format(
                     full_name)))

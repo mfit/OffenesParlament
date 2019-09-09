@@ -9,7 +9,13 @@ from op_scraper.models import LegislativePeriod
 
 
 class LegislativePeriodSpider(BaseSpider):
-    BASE_URL = "{}/{}".format(BASE_HOST, "/WWER/PARL/")
+    """
+    The page with the select input element from where we get the list of
+    LLPs seems to have moved one level deeper (to 'persons after year 1918')
+    https://www.parlament.gv.at/WWER/PARL/J1918/
+    # BASE_URL = "{}/{}".format(BASE_HOST, "/WWER/PARL/")
+    """
+    BASE_URL = "{}/{}".format(BASE_HOST, "/WWER/PARL/J1918/")
 
     name = "llp"
     title = "Legislative Periods Spider"
