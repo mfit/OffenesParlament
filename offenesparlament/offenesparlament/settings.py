@@ -47,8 +47,8 @@ class BaseConfig(Configuration):
     ALLOWED_HOSTS = []
 
     INSTALLED_APPS = (
-        'grappelli.dashboard',
-        'grappelli',
+        # 'grappelli.dashboard',
+        # 'grappelli',
         'django.contrib.admin',
         'django.contrib.auth',
         'django.contrib.contenttypes',
@@ -148,9 +148,9 @@ class BaseConfig(Configuration):
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': 'op',
-            'USER': 'op',
-            'PASSWORD': 'secret',
-            'HOST': '127.0.0.1',
+            'USER': 'postgres',
+            'PASSWORD': 'example',
+            'HOST': '0.0.0.0',
             'PORT': '5432',
             'CHARSET': 'UTF8',
             'TEST_CHARSET': 'UTF8',
@@ -212,7 +212,7 @@ class Dev(BaseConfig):
     BROKER_URL = 'amqp://offenesparlament:op_dev_qwerty@offenesparlament.vm:5672//'
     #CELERY_RESULT_BACKEND = 'amqp'
 
-    ALLOWED_HOSTS = ['offenesparlament.vm','testserver']
+    ALLOWED_HOSTS = ['offenesparlament.vm', 'testserver', 'localhost']
 
     # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
@@ -259,16 +259,16 @@ class Dev(BaseConfig):
         },
     }
 
-    INSTALLED_APPS = BaseConfig.INSTALLED_APPS + (
-        'debug_toolbar',
-        'template_timings_panel'
-    )
+    # INSTALLED_APPS = BaseConfig.INSTALLED_APPS + (
+    #     'debug_toolbar',
+    #     'template_timings_panel'
+    # )
 
     # configure debug toolbar explicitly
-    DEBUG_TOOLBAR_PATCH_SETTINGS = False
+    # DEBUG_TOOLBAR_PATCH_SETTINGS = False
 
-    MIDDLEWARE_CLASSES = BaseConfig.MIDDLEWARE_CLASSES + \
-        ('debug_toolbar.middleware.DebugToolbarMiddleware', )
+    # MIDDLEWARE_CLASSES = BaseConfig.MIDDLEWARE_CLASSES + \
+    #     ('debug_toolbar.middleware.DebugToolbarMiddleware', )
 
     INTERNAL_IPS = ('127.0.0.1', '10.0.2.2', '192.168.47.1')
 
