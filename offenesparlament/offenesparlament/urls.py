@@ -125,7 +125,7 @@ urlpatterns = patterns(
         name='commentedcontent_view'),
 
 
-    url(r'^grappelli/', include('grappelli.urls')),  # grappelli URLS
+    # url(r'^grappelli/', include('grappelli.urls')),  # grappelli URLS
     url(r'^admin/scrape/(?P<spider_name>.{1,30})',
         admin_views.trigger_scrape, name='scrape_llp'),
     url(r'^admin/elastic/update',
