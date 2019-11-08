@@ -8,7 +8,7 @@ Alternate README (focus on scraping)
 
 Create a virtualenv:
 
-        python -m virtualenv -p python2 env
+        python -m virtualenv -p python2 py
 
 Install dependencies
 
