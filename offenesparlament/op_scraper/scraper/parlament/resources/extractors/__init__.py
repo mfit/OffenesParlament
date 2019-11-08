@@ -63,3 +63,22 @@ class GENERIC:
             except:
                 import ipdb
                 ipdb.set_trace()
+
+    class TIMESTAMP_STAND(SingleExtractor):
+        """
+        Bsp:
+        <div id="stand">Stand: 09.05.2017</div>
+        """
+        @classmethod
+        def xt(cls, response):
+            tstring = response.xpath(
+                '//*[@id="stand"]/text()').extract()[0]
+            tstring = tstring.replace(u'Stand: ', '')
+            try:
+                ts = datetime.strptime(tstring, '%d.%m.%Y')
+                return ts
+            except:
+                import ipdb
+                ipdb.set_trace()
+
+
