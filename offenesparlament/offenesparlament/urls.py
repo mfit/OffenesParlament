@@ -133,11 +133,11 @@ urlpatterns = patterns(
     url(r'^admin/', include(admin.site.urls)),
 )
 
-if settings.DEBUG:
-    import debug_toolbar
-    urlpatterns += patterns('',
-                            (r'^media/(?P<path>.*)$', 'django.views.static.serve', {
-                             'document_root': settings.MEDIA_ROOT}))
-    urlpatterns += patterns('',
-                            url(r'^__debug__/', include(debug_toolbar.urls)),
-                            )
+# if settings.DEBUG:
+#     import debug_toolbar
+#     urlpatterns += patterns('',
+#                             (r'^media/(?P<path>.*)$', 'django.views.static.serve', {
+#                              'document_root': settings.MEDIA_ROOT}))
+#     urlpatterns += patterns('',
+#                             url(r'^__debug__/', include(debug_toolbar.urls)),
+#                             )

@@ -43,7 +43,7 @@ djangorestframework==3.6.3
 markdown==2.6.8
 django-filter==1.0.4
 Pillow
-django-bleach
+django-bleach<=0.5
 tabulate
 html-sanitizer
 lxml

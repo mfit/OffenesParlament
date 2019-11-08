@@ -12,9 +12,9 @@ Create a virtualenv:
 
 Install dependencies
 
-        env/bin/pip install -r requirements.txt
-        env/bin/pip install -r requirements.production.txt
-        env/bin/pip install -r requirements.dev.txt
+        py/bin/pip install -r requirements.txt
+        py/bin/pip install -r requirements.production.txt
+        py/bin/pip install -r requirements.dev.txt
 
 TODO: requirements need some fixing (?). Conflicts here and there, and e.g.
 for postgres package, a binary package has to be chosen instead of the
@@ -24,7 +24,7 @@ specified one.
 
 Run it from the virtualenv
 
-        env/bin/python offenesparlament/manage.py
+        py/bin/python offenesparlament/manage.py
 
 
 ### Database via docker
@@ -48,7 +48,7 @@ Create a database by the name of 'op'.
 
 Create the model tables:
 
-        env/bin/python offenesparlament/manage.py migrate
+        py/bin/python offenesparlament/manage.py migrate
 
 ### Notes
 
@@ -63,11 +63,18 @@ django and scrapy are pinned to lower versions due to depreactions:
 Ready to scrape:
 
         # Show list of available spiders
-        env/bin/python offenesparlament/manage.py scrape list
+        py/bin/python offenesparlament/manage.py scrape list
 
         # Run a spider, e.g. 'llp'
-        env/bin/python offenesparlament/manage.py scrape crawl llp
+        py/bin/python offenesparlament/manage.py scrape crawl llp
 
 
         # Example, crawl statements of 23rd legislative perdiod
-        env/bin/python offenesparlament/manage.py scrape crawl statement -a llp=23
+        py/bin/python offenesparlament/manage.py scrape crawl statement -a llp=23
+
+
+### Quick Reference / Clipboard
+
+Join person to party via political mandate:
+
+        select full_name, pp.short from op_scraper_mandate m join op_scraper_person p on m.id = p.latest_mandate_id join op_scraper_party pp on m.party_id = pp.id;
